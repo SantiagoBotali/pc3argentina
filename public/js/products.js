@@ -56,7 +56,7 @@ function buildProductRow(product, section, rowNum) {
   const firstImg  = images[0];
   const imgSrc    = firstImg ? `/productos/${product.slug}/${firstImg.filename}` : null;
 
-  const cartItem   = state.carts[section][product.id];
+  const cartItem   = state.carts[section][`${product.id}_0`];
   const currentQty = cartItem ? cartItem.quantity : 0;
 
   // Show web reference price when it differs from list price (always in mayo; in pro when discount tiers exist)
