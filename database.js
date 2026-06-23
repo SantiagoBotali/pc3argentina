@@ -1,200 +1,137 @@
 /**
- * Synchronous SQLite wrapper using sql.js (pure WebAssembly, no native build required).
- * Exposes a subset of the better-sqlite3 API so the rest of the codebase stays the same.
+ * PostgreSQL wrapper using the `pg` library.
+ * Exposes a subset of the better-sqlite3 API (with async) so the rest
+ * of the codebase only needs `await` on each call.
  */
 
-const path = require('path');
-const fs = require('fs');
-const initSqlJs = require('sql.js');
+const { Pool } = require('pg');
 
-const dbDir = path.join(__dirname, 'db');
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir);
+let pool;
 
-const DB_PATH = path.join(dbDir, 'pc3.sqlite');
+/** Convert SQLite-style `?` placeholders to PostgreSQL `$1, $2, ...` */
+function toPgSql(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
 
-// sql.js must be initialised asynchronously, but we expose a synchronous API.
-// We resolve the DB synchronously using node's blocking approach via a shared state object
-// that gets filled during the init() call, which must be awaited before anything else.
+/** Flatten variadic args: prepare(sql).run(a, b, c) → [a, b, c] */
+function flatParams(args) {
+  if (!args || args.length === 0) return [];
+  if (args.length === 1 && Array.isArray(args[0])) return args[0];
+  return args;
+}
 
-let SQL = null;
-let sqlDb = null;
+/** Build a prepared-statement-like async object */
+function prepare(sql) {
+  const pgQuery = toPgSql(sql);
+  // Append RETURNING id to INSERT statements so lastInsertRowid works
+  const isInsert = /^\s*INSERT/i.test(sql);
+  const hasReturning = /RETURNING/i.test(sql);
+  const insertQuery = isInsert && !hasReturning ? pgQuery + ' RETURNING id' : pgQuery;
+
+  return {
+    async run(...args) {
+      const params = flatParams(args);
+      const result = await pool.query(insertQuery, params);
+      return {
+        lastInsertRowid: result.rows[0]?.id ?? 0,
+        changes: result.rowCount ?? 0,
+      };
+    },
+    async get(...args) {
+      const params = flatParams(args);
+      const result = await pool.query(pgQuery, params);
+      return result.rows[0];
+    },
+    async all(...args) {
+      const params = flatParams(args);
+      const result = await pool.query(pgQuery, params);
+      return result.rows;
+    },
+  };
+}
+
+/** Get a raw pg client for explicit transactions. Caller must call client.release(). */
+async function getClient() {
+  return pool.connect();
+}
+
+/** Execute a raw SQL string (DDL / multi-statement). No params. */
+async function exec(sql) {
+  await pool.query(sql);
+}
+
+/** No-op — data persists automatically in PostgreSQL */
+function save() {}
 
 async function init() {
-  SQL = await initSqlJs();
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+  });
 
-  if (fs.existsSync(DB_PATH)) {
-    const buf = fs.readFileSync(DB_PATH);
-    sqlDb = new SQL.Database(buf);
-  } else {
-    sqlDb = new SQL.Database();
-  }
-
-  // Enable WAL-equivalent settings
-  sqlDb.run('PRAGMA foreign_keys = ON;');
-
-  // Create tables
-  sqlDb.run(`
+  // ── Schema ───────────────────────────────────────────────────────
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS products (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug        TEXT    NOT NULL UNIQUE,
-      name        TEXT    NOT NULL,
-      description TEXT    NOT NULL DEFAULT '',
-      contents    TEXT    NOT NULL DEFAULT '',
-      price_pro   INTEGER NOT NULL DEFAULT 0,
-      price_mayo  INTEGER NOT NULL DEFAULT 0,
-      stock       INTEGER NOT NULL DEFAULT 0,
-      active      INTEGER NOT NULL DEFAULT 1,
-      sort_order  INTEGER NOT NULL DEFAULT 0,
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
-    );
+      id           SERIAL PRIMARY KEY,
+      slug         TEXT    NOT NULL UNIQUE,
+      name         TEXT    NOT NULL,
+      description  TEXT    NOT NULL DEFAULT '',
+      contents     TEXT    NOT NULL DEFAULT '',
+      price_pro    INTEGER NOT NULL DEFAULT 0,
+      price_mayo   INTEGER NOT NULL DEFAULT 0,
+      price_public INTEGER NOT NULL DEFAULT 0,
+      stock        INTEGER NOT NULL DEFAULT 0,
+      active       INTEGER NOT NULL DEFAULT 1,
+      sort_order   INTEGER NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
   `);
 
-  sqlDb.run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS product_images (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      id          SERIAL PRIMARY KEY,
       product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       filename    TEXT    NOT NULL,
+      color_name  TEXT    NOT NULL DEFAULT '',
+      stock       INTEGER NOT NULL DEFAULT 0,
       sort_order  INTEGER NOT NULL DEFAULT 0
-    );
+    )
   `);
 
-  sqlDb.run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS discount_tiers (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      id           SERIAL PRIMARY KEY,
       product_id   INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       section      TEXT    NOT NULL,
       min_quantity INTEGER NOT NULL,
       percentage   REAL    NOT NULL,
       UNIQUE(product_id, section, min_quantity)
-    );
+    )
   `);
 
-  sqlDb.run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_users (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      id            SERIAL PRIMARY KEY,
       username      TEXT    NOT NULL UNIQUE,
       password_hash TEXT    NOT NULL
-    );
+    )
   `);
 
-  sqlDb.run(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    );
+    )
   `);
 
-  // Migrate: add price_public to products if not present
-  const prodCols = sqlDb.exec('PRAGMA table_info(products)');
-  if (prodCols.length > 0) {
-    const existingProdCols = prodCols[0].values.map(row => row[1]);
-    if (!existingProdCols.includes('price_public')) {
-      sqlDb.run('ALTER TABLE products ADD COLUMN price_public INTEGER NOT NULL DEFAULT 0');
-    }
-  }
+  // ── Migrations (idempotent column additions) ──────────────────────
+  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_public INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_name TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0`);
 
-  // Migrate: add color_name and stock to product_images if not present
-  const piCols = sqlDb.exec('PRAGMA table_info(product_images)');
-  if (piCols.length > 0) {
-    const existingCols = piCols[0].values.map(row => row[1]);
-    if (!existingCols.includes('color_name')) {
-      sqlDb.run("ALTER TABLE product_images ADD COLUMN color_name TEXT NOT NULL DEFAULT ''");
-    }
-    if (!existingCols.includes('stock')) {
-      sqlDb.run("ALTER TABLE product_images ADD COLUMN stock INTEGER NOT NULL DEFAULT 0");
-    }
-  }
-
-  save();
-  return proxy;
+  return { prepare, getClient, exec, save };
 }
 
-/** Persist the in-memory database to disk */
-function save() {
-  const data = sqlDb.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
-}
-
-/**
- * Parse named params like `@name` or `?` positional into sql.js format.
- * sql.js uses `?NNN`, `:name`, `@name`, `$name`.
- * It accepts plain objects for named params and arrays for positional.
- */
-function toSqlJsParams(params) {
-  if (!params || params.length === 0) return [];
-  if (params.length === 1 && params[0] !== null && typeof params[0] === 'object' && !Array.isArray(params[0])) {
-    return params[0]; // named params object
-  }
-  return params;
-}
-
-/** Execute a statement and return { lastInsertRowid, changes } */
-function runStmt(sql, params) {
-  const p = toSqlJsParams(params);
-  sqlDb.run(sql, p);
-  const info = {
-    lastInsertRowid: sqlDb.exec('SELECT last_insert_rowid()')[0]?.values[0]?.[0] ?? 0,
-    changes: sqlDb.exec('SELECT changes()')[0]?.values[0]?.[0] ?? 0,
-  };
-  save();
-  return info;
-}
-
-/** Return first matching row as object, or undefined */
-function getRow(sql, params) {
-  const p = toSqlJsParams(params);
-  const result = sqlDb.exec(sql, p);
-  if (!result.length || !result[0].values.length) return undefined;
-  const { columns, values } = result[0];
-  return Object.fromEntries(columns.map((c, i) => [c, values[0][i]]));
-}
-
-/** Return all matching rows as objects */
-function allRows(sql, params) {
-  const p = toSqlJsParams(params);
-  const result = sqlDb.exec(sql, p);
-  if (!result.length) return [];
-  const { columns, values } = result[0];
-  return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])));
-}
-
-/** Execute multi-statement DDL / DML (no params) */
-function execSql(sql) {
-  sqlDb.exec(sql);
-  save();
-}
-
-/** Build a prepared-statement-like object */
-function prepare(sql) {
-  return {
-    run(...args) { return runStmt(sql, args); },
-    get(...args) { return getRow(sql, args); },
-    all(...args) { return allRows(sql, args); },
-  };
-}
-
-/** Simple transaction wrapper */
-function transaction(fn) {
-  return (...args) => {
-    sqlDb.run('BEGIN');
-    try {
-      fn(...args);
-      sqlDb.run('COMMIT');
-      save();
-    } catch (e) {
-      sqlDb.run('ROLLBACK');
-      throw e;
-    }
-  };
-}
-
-const proxy = {
-  prepare,
-  exec: execSql,
-  transaction,
-  save,
-  pragma: () => {}, // no-op (handled in init)
-};
-
-module.exports = { init, proxy };
+module.exports = { init };

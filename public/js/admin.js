@@ -1,3 +1,10 @@
+// ─── Image URL helper (supports Cloudinary URLs and local paths) ─
+function productImgSrc(slug, filename) {
+  if (!filename) return '';
+  if (filename.startsWith('http')) return filename;
+  return `/productos/${slug}/${filename}`;
+}
+
 // ─── Admin SPA ────────────────────────────────────────────────
 const admin = {
   products: [],
@@ -102,7 +109,7 @@ async function renderProductsPage() {
 
 function buildProductRow(p) {
   const firstImg = p.images && p.images[0];
-  const imgSrc = firstImg ? `/productos/${p.slug}/${firstImg.filename}` : '';
+  const imgSrc = firstImg ? productImgSrc(p.slug, firstImg.filename) : '';
   const hasVariants = p.images && p.images.length > 0;
   const variantStockTotal = hasVariants
     ? p.images.reduce((sum, img) => sum + (img.stock || 0), 0)
@@ -294,7 +301,7 @@ function buildEditForm(p) {
     <div id="img-color-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
       ${(p.images || []).map((img) => `
         <div class="img-color-row" data-img-id="${img.id}" style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--color-surface2);border-radius:8px">
-          <img src="/productos/${p.slug}/${img.filename}" alt="${img.filename}"
+          <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
             style="width:56px;height:56px;object-fit:cover;border-radius:6px;flex-shrink:0">
           <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">
             <input type="text"
@@ -521,7 +528,7 @@ function openStockModal(productId) {
   if (hasVariants) {
     body.innerHTML = product.images.map(img => `
       <div class="stock-modal-row" data-img-id="${img.id}">
-        <img src="/productos/${product.slug}/${img.filename}" alt="${img.color_name || img.filename}" loading="lazy">
+        <img src="${productImgSrc(product.slug, img.filename)}" alt="${img.color_name || img.filename}" loading="lazy">
         <span class="stock-modal-color-name">${img.color_name || img.filename}</span>
         <div class="stock-modal-stock-wrap">
           <label>Stock</label>

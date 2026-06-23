@@ -13,18 +13,22 @@ router.get('/login', (req, res) => {
 });
 
 // POST /admin/login
-router.post('/login', (req, res) => {
-  const db = getDb();
-  const { username, password } = req.body;
-  const admin = db.prepare(`SELECT * FROM admin_users WHERE username = ?`).get(username);
+router.post('/login', async (req, res) => {
+  try {
+    const db = getDb();
+    const { username, password } = req.body;
+    const admin = await db.prepare(`SELECT * FROM admin_users WHERE username = ?`).get(username);
 
-  if (!admin || !bcrypt.compareSync(password, admin.password_hash)) {
-    return res.redirect('/admin/login?error=1');
+    if (!admin || !bcrypt.compareSync(password, admin.password_hash)) {
+      return res.redirect('/admin/login?error=1');
+    }
+
+    req.session.adminId = admin.id;
+    req.session.adminUsername = admin.username;
+    res.redirect('/admin');
+  } catch (e) {
+    res.redirect('/admin/login?error=1');
   }
-
-  req.session.adminId = admin.id;
-  req.session.adminUsername = admin.username;
-  res.redirect('/admin');
 });
 
 // POST /admin/logout

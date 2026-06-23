@@ -4,14 +4,15 @@ const session = require('express-session');
 const path = require('path');
 
 async function main() {
-  // Init DB first (async sql.js initialisation)
   const { init } = require('./database');
   const db = await init();
-  // Make db available globally before loading routes
   global.__db = db;
 
   const app = express();
   const PORT = process.env.PORT || 3000;
+
+  // Trust Railway/Vercel proxy for secure cookies
+  app.set('trust proxy', 1);
 
   // Static files
   app.use(express.static(path.join(__dirname, 'public')));
@@ -24,15 +25,16 @@ async function main() {
   app.use(express.urlencoded({ extended: true }));
 
   // Sessions
+  const isProduction = process.env.NODE_ENV === 'production';
   app.use(session({
-    secret: process.env.SESSION_SECRET || 'pc3_secret',
+    secret: process.env.SESSION_SECRET || 'pc3_secret_dev',
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: false,
+      secure: isProduction,
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24h
-    }
+    },
   }));
 
   // Routes

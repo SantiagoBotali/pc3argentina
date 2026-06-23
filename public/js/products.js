@@ -1,3 +1,10 @@
+// ─── Image URL helper (supports Cloudinary URLs and local paths) ─
+function productImgSrc(slug, filename) {
+  if (!filename) return '';
+  if (filename.startsWith('http')) return filename;
+  return `/productos/${slug}/${filename}`;
+}
+
 // ─── Price helpers ─────────────────────────────────────────────
 function getEffectivePrice(product, section, quantity) {
   const price = section === 'mayorista' ? product.price_mayo : product.price_pro;
@@ -43,7 +50,7 @@ function buildProductRow(product, section, rowNum) {
   const basePrice = section === 'mayorista' ? product.price_mayo : product.price_pro;
   const webPrice  = product.price_pro;
   const firstImg  = images[0];
-  const imgSrc    = firstImg ? `/productos/${product.slug}/${firstImg.filename}` : null;
+  const imgSrc    = firstImg ? productImgSrc(product.slug, firstImg.filename) : null;
 
   const cartItem   = state.carts[section][`${product.id}_0`];
   const currentQty = cartItem ? cartItem.quantity : 0;
@@ -77,12 +84,12 @@ function buildProductRow(product, section, rowNum) {
             const label = img.color_name || variantLabel(img.filename, i);
             return `<button class="row-swatch js-swatch ${i === 0 ? 'active' : ''}"
               data-swatch-idx="${i}"
-              data-src="/productos/${product.slug}/${img.filename}"
+              data-src="${productImgSrc(product.slug, img.filename)}"
               data-color-name="${label}"
               data-stock="${img.stock || 0}"
               aria-label="${label}"
               title="${label}">
-              <img src="/productos/${product.slug}/${img.filename}" alt="" loading="lazy">
+              <img src="${productImgSrc(product.slug, img.filename)}" alt="" loading="lazy">
             </button>`;
           }).join('')}
         </div>
