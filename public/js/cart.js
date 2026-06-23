@@ -69,32 +69,52 @@ function getCartItemCount(section) {
 
 // ─── Cart UI ──────────────────────────────────────────────────
 window.updateCartUI = function() {
-  const proCount = getCartItemCount('profesional');
+  const activeSection = state.activeSection;
+
+  // Lock cart tab to active section — the other section's cart is not accessible
+  state.activeCartTab = activeSection;
+
+  const isPro  = activeSection === 'profesional';
+  const isMayo = activeSection === 'mayorista';
+
+  // Header buttons: disable & dim the inactive section's button
+  const btnPro  = document.getElementById('cart-btn-pro');
+  const btnMayo = document.getElementById('cart-btn-mayo');
+  if (btnPro)  { btnPro.disabled  = !isPro;  btnPro.style.opacity  = isPro  ? '' : '0.3'; btnPro.style.cursor  = isPro  ? '' : 'not-allowed'; }
+  if (btnMayo) { btnMayo.disabled = !isMayo; btnMayo.style.opacity = isMayo ? '' : '0.3'; btnMayo.style.cursor = isMayo ? '' : 'not-allowed'; }
+
+  // Sidebar tabs: hide the inactive one
+  const tabPro  = document.getElementById('cart-tab-pro');
+  const tabMayo = document.getElementById('cart-tab-mayo');
+  if (tabPro)  tabPro.style.display  = isPro  ? '' : 'none';
+  if (tabMayo) tabMayo.style.display = isMayo ? '' : 'none';
+
+  // FABs: disable the inactive section's FAB
+  const fabPro  = document.getElementById('fab-cart-pro');
+  const fabMayo = document.getElementById('fab-cart-mayo');
+  if (fabPro)  { fabPro.disabled  = !isPro;  fabPro.style.opacity  = isPro  ? '' : '0.3'; }
+  if (fabMayo) { fabMayo.disabled = !isMayo; fabMayo.style.opacity = isMayo ? '' : '0.3'; }
+
+  const proCount  = getCartItemCount('profesional');
   const mayoCount = getCartItemCount('mayorista');
 
-  // Header buttons
-  const proCountEl = document.getElementById('cart-count-pro');
+  // Badge counts on header buttons
+  const proCountEl  = document.getElementById('cart-count-pro');
   const mayoCountEl = document.getElementById('cart-count-mayo');
-  if (proCountEl) {
-    proCountEl.textContent = proCount;
-    proCountEl.style.display = proCount > 0 ? 'flex' : 'none';
-  }
-  if (mayoCountEl) {
-    mayoCountEl.textContent = mayoCount;
-    mayoCountEl.style.display = mayoCount > 0 ? 'flex' : 'none';
-  }
+  if (proCountEl)  { proCountEl.textContent  = proCount;  proCountEl.style.display  = proCount  > 0 ? 'flex' : 'none'; }
+  if (mayoCountEl) { mayoCountEl.textContent = mayoCount; mayoCountEl.style.display = mayoCount > 0 ? 'flex' : 'none'; }
 
   // Sidebar tab counts
-  const sidebarProEl = document.getElementById('sidebar-count-pro');
+  const sidebarProEl  = document.getElementById('sidebar-count-pro');
   const sidebarMayoEl = document.getElementById('sidebar-count-mayo');
-  if (sidebarProEl) sidebarProEl.textContent = proCount;
+  if (sidebarProEl)  sidebarProEl.textContent  = proCount;
   if (sidebarMayoEl) sidebarMayoEl.textContent = mayoCount;
 
   // Active header button highlight
   document.getElementById('cart-btn-pro')?.classList.toggle('has-items', proCount > 0);
   document.getElementById('cart-btn-mayo')?.classList.toggle('has-items', mayoCount > 0);
 
-  renderCartSidebar(state.activeCartTab);
+  renderCartSidebar(activeSection);
   window.updateFabCart?.();
 };
 

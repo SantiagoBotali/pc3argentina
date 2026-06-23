@@ -85,6 +85,15 @@ async function init() {
     );
   `);
 
+  // Migrate: add price_public to products if not present
+  const prodCols = sqlDb.exec('PRAGMA table_info(products)');
+  if (prodCols.length > 0) {
+    const existingProdCols = prodCols[0].values.map(row => row[1]);
+    if (!existingProdCols.includes('price_public')) {
+      sqlDb.run('ALTER TABLE products ADD COLUMN price_public INTEGER NOT NULL DEFAULT 0');
+    }
+  }
+
   // Migrate: add color_name and stock to product_images if not present
   const piCols = sqlDb.exec('PRAGMA table_info(product_images)');
   if (piCols.length > 0) {

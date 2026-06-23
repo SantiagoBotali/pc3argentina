@@ -27,6 +27,8 @@ const fmtPrice = (n) =>
 function toast(msg, type = 'success') {
   const c = document.getElementById('admin-toasts');
   if (!c) return;
+  // Dismiss any existing toasts immediately
+  c.querySelectorAll('.toast').forEach(existing => existing.remove());
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   t.textContent = msg;
@@ -101,6 +103,13 @@ async function renderProductsPage() {
 function buildProductRow(p) {
   const firstImg = p.images && p.images[0];
   const imgSrc = firstImg ? `/productos/${p.slug}/${firstImg.filename}` : '';
+  const hasVariants = p.images && p.images.length > 0;
+  const variantStockTotal = hasVariants
+    ? p.images.reduce((sum, img) => sum + (img.stock || 0), 0)
+    : null;
+  const variantStockTooltip = hasVariants
+    ? p.images.map(img => `${img.color_name || img.filename}: ${img.stock || 0}`).join('\n')
+    : '';
   return `
   <tr data-id="${p.id}">
     <td>
@@ -113,7 +122,16 @@ function buildProductRow(p) {
     <td>${fmtPrice(p.price_pro)}</td>
     <td>${fmtPrice(p.price_mayo)}</td>
     <td>
-      <input type="number" class="inline-stock-input" data-id="${p.id}" value="${p.stock}" min="0">
+      <div style="display:flex;align-items:center;gap:8px">
+        ${hasVariants
+          ? `<span title="${variantStockTooltip}" style="font-size:13px;cursor:default">
+               ${variantStockTotal} un
+               <span style="font-size:10px;color:var(--color-text-muted);display:block">${p.images.length} colores</span>
+             </span>`
+          : `<input type="number" class="inline-stock-input" data-id="${p.id}" value="${p.stock}" min="0">`
+        }
+        <button class="btn btn-secondary btn-sm stock-btn" data-id="${p.id}" title="Gestionar stock" style="flex-shrink:0">📦</button>
+      </div>
     </td>
     <td>
       <label class="active-toggle" title="${p.active ? 'Activo' : 'Inactivo'}">
@@ -134,6 +152,10 @@ function attachTableEvents() {
   // Edit
   document.querySelectorAll('.edit-btn').forEach(btn =>
     btn.addEventListener('click', () => openEditPanel(parseInt(btn.dataset.id))));
+
+  // Stock modal
+  document.querySelectorAll('.stock-btn').forEach(btn =>
+    btn.addEventListener('click', () => openStockModal(parseInt(btn.dataset.id))));
 
   // Delete (hard — permanent)
   document.querySelectorAll('.delete-btn').forEach(btn =>
@@ -199,10 +221,6 @@ async function openEditPanel(productId) {
 }
 
 function buildEditForm(p) {
-  const tiers = p ? p.discount_tiers || [] : [];
-  const proTiers = tiers.filter(t => t.section === 'profesional');
-  const mayoTiers = tiers.filter(t => t.section === 'mayorista');
-
   return `
     <!-- Basic info -->
     <div class="section-divider">Información básica</div>
@@ -233,9 +251,9 @@ function buildEditForm(p) {
     <!-- Pricing -->
     <div class="section-divider">Precios</div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
       <div class="form-group">
-        <label class="form-label">Precio Profesional (Web)</label>
+        <label class="form-label">Precio Profesional</label>
         <input type="number" class="form-control" id="ef-price-pro" value="${p?.price_pro || ''}" placeholder="3500" min="0">
       </div>
       <div class="form-group">
@@ -243,16 +261,21 @@ function buildEditForm(p) {
         <input type="number" class="form-control" id="ef-price-mayo" value="${p?.price_mayo || ''}" placeholder="1450" min="0">
       </div>
       <div class="form-group">
+        <label class="form-label">Precio Público</label>
+        <input type="number" class="form-control" id="ef-price-public" value="${p?.price_public || ''}" placeholder="5000" min="0">
+      </div>
+      <div class="form-group">
         <label class="form-label">Stock disponible
           ${p && p.images && p.images.length > 0
-            ? '<span style="font-size:11px;color:var(--color-text-muted)"> (gestionado por color)</span>'
+            ? '<span style="font-size:11px;color:var(--color-text-muted)"> (por color)</span>'
             : ''}
         </label>
-        <input type="number" class="form-control" id="ef-stock" value="${p?.stock ?? ''}" placeholder="100" min="0"
-          ${p && p.images && p.images.length > 0 ? 'disabled style="opacity:0.5"' : ''}>
         ${p && p.images && p.images.length > 0
-          ? '<div style="font-size:11px;color:var(--color-text-muted);margin-top:4px">El stock se gestiona por color en la sección de imágenes.</div>'
-          : ''}
+          ? `<button type="button" class="btn btn-secondary btn-sm" id="btn-manage-stock" style="margin-top:2px">
+               📦 Gestionar stock por color
+             </button>`
+          : `<input type="number" class="form-control" id="ef-stock" value="${p?.stock ?? ''}" placeholder="100" min="0">`
+        }
       </div>
     </div>
 
@@ -263,21 +286,6 @@ function buildEditForm(p) {
       </label>
       <span class="text-sm">Producto activo (visible en el catálogo)</span>
     </div>
-
-    <!-- Discount Tiers -->
-    ${p ? `
-    <div class="section-divider">Descuentos por volumen — Profesional</div>
-    <div id="pro-tiers-wrap">
-      ${buildTiersTable(proTiers, 'profesional', p.id)}
-    </div>
-    <button class="btn btn-ghost btn-sm" id="add-pro-tier">+ Agregar tramo</button>
-
-    <div class="section-divider" style="margin-top:16px">Descuentos por volumen — Mayorista</div>
-    <div id="mayo-tiers-wrap">
-      ${buildTiersTable(mayoTiers, 'mayorista', p.id)}
-    </div>
-    <button class="btn btn-ghost btn-sm" id="add-mayo-tier">+ Agregar tramo</button>
-    ` : '<div class="text-sm text-muted mt-2">Guardá el producto primero para configurar los descuentos por volumen.</div>'}
 
     <!-- Images -->
     ${p ? `
@@ -350,36 +358,12 @@ function setupEditFormEvents(product) {
   // Save
   document.getElementById('save-product-btn')?.addEventListener('click', () => saveProduct(product));
 
-  // Add tiers
+  // Stock modal trigger from edit panel
+  document.getElementById('btn-manage-stock')?.addEventListener('click', () => {
+    if (product) openStockModal(product.id);
+  });
+
   if (product) {
-    document.getElementById('add-pro-tier')?.addEventListener('click', () => addTier(product.id, 'profesional'));
-    document.getElementById('add-mayo-tier')?.addEventListener('click', () => addTier(product.id, 'mayorista'));
-
-    // Delete tiers (delegated)
-    document.getElementById('edit-panel-body')?.addEventListener('click', async (e) => {
-      if (!e.target.classList.contains('del-tier-btn')) return;
-      const tierId = e.target.dataset.id;
-      try {
-        await api(`/admin/tiers/${tierId}`, { method: 'DELETE' });
-        e.target.closest('tr').remove();
-        toast('Tramo eliminado');
-      } catch (err) { toast(err.message, 'error'); }
-    });
-
-    // Save tier on change
-    document.getElementById('edit-panel-body')?.addEventListener('change', async (e) => {
-      if (!e.target.classList.contains('tier-min') && !e.target.classList.contains('tier-pct')) return;
-      const row = e.target.closest('tr[data-tier-id]');
-      if (!row) return;
-      const tierId = row.dataset.tierId;
-      const min = row.querySelector('.tier-min').value;
-      const pct = row.querySelector('.tier-pct').value;
-      try {
-        await api(`/admin/tiers/${tierId}`, { method: 'PUT', body: { min_quantity: min, percentage: pct } });
-        toast('Tramo actualizado');
-      } catch (err) { toast(err.message, 'error'); }
-    });
-
     // Image delete
     document.getElementById('img-color-list')?.addEventListener('click', async (e) => {
       if (!e.target.classList.contains('img-thumb-del')) return;
@@ -485,6 +469,7 @@ async function saveProduct(existingProduct) {
   const description = document.getElementById('ef-description')?.value.trim();
   const price_pro = document.getElementById('ef-price-pro')?.value;
   const price_mayo = document.getElementById('ef-price-mayo')?.value;
+  const price_public = document.getElementById('ef-price-public')?.value;
   const stock = document.getElementById('ef-stock')?.value;
   const active = document.getElementById('ef-active')?.checked;
 
@@ -492,7 +477,7 @@ async function saveProduct(existingProduct) {
   if (!name) { showEfError(errorEl, 'El nombre es requerido'); return; }
   if (!existingProduct && !slug) { showEfError(errorEl, 'El slug es requerido'); return; }
 
-  const body = { name, contents, description, price_pro, price_mayo, stock, active };
+  const body = { name, contents, description, price_pro, price_mayo, price_public, stock, active };
 
   try {
     if (existingProduct) {
@@ -517,6 +502,84 @@ function closeEditPanel() {
   document.getElementById('edit-panel')?.classList.remove('open');
   document.getElementById('panel-overlay')?.classList.remove('visible');
   admin.editProductId = null;
+}
+
+// ─── Stock Modal ──────────────────────────────────────────────
+function openStockModal(productId) {
+  const product = admin.products.find(p => p.id === productId);
+  if (!product) return;
+
+  const modal   = document.getElementById('stock-modal');
+  const overlay = document.getElementById('stock-modal-overlay');
+  const title   = document.getElementById('stock-modal-title');
+  const body    = document.getElementById('stock-modal-body');
+
+  title.textContent = `Stock — ${product.name}`;
+
+  const hasVariants = product.images && product.images.length > 0;
+
+  if (hasVariants) {
+    body.innerHTML = product.images.map(img => `
+      <div class="stock-modal-row" data-img-id="${img.id}">
+        <img src="/productos/${product.slug}/${img.filename}" alt="${img.color_name || img.filename}" loading="lazy">
+        <span class="stock-modal-color-name">${img.color_name || img.filename}</span>
+        <div class="stock-modal-stock-wrap">
+          <label>Stock</label>
+          <input type="number" class="form-control stock-modal-input"
+            data-img-id="${img.id}"
+            data-product-id="${product.id}"
+            value="${img.stock || 0}" min="0"
+            style="width:90px">
+        </div>
+      </div>
+    `).join('');
+  } else {
+    body.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Stock disponible</label>
+        <input type="number" class="form-control" id="stock-modal-single"
+          value="${product.stock || 0}" min="0" style="max-width:160px">
+      </div>
+    `;
+  }
+
+  overlay.classList.add('visible');
+  modal.classList.add('open');
+
+  document.getElementById('save-stock-modal').onclick = async () => {
+    try {
+      if (hasVariants) {
+        for (const input of body.querySelectorAll('.stock-modal-input')) {
+          const imgId = parseInt(input.dataset.imgId);
+          const prodId = input.dataset.productId;
+          const stock = parseInt(input.value) || 0;
+          const img = product.images.find(i => i.id === imgId);
+          await api(`/admin/products/${prodId}/images/${imgId}`, {
+            method: 'PUT',
+            body: { color_name: img?.color_name || '', stock }
+          });
+          if (img) img.stock = stock;
+        }
+      } else {
+        const stock = parseInt(document.getElementById('stock-modal-single').value) || 0;
+        await api(`/admin/products/${product.id}`, { method: 'PUT', body: { stock } });
+        product.stock = stock;
+      }
+      toast('Stock actualizado');
+      closeStockModal();
+      // Refresh table row without full reload
+      const tr = document.querySelector(`#products-tbody tr[data-id="${productId}"]`);
+      if (tr) tr.outerHTML = buildProductRow(product);
+      attachTableEvents();
+      // If edit panel is open for this product, refresh it
+      if (admin.editProductId === productId) openEditPanel(productId);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+}
+
+function closeStockModal() {
+  document.getElementById('stock-modal')?.classList.remove('open');
+  document.getElementById('stock-modal-overlay')?.classList.remove('visible');
 }
 
 // ─── Settings Page ────────────────────────────────────────────

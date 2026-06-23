@@ -1,23 +1,12 @@
-// ─── Discount helpers ─────────────────────────────────────────
-function getApplicableTier(product, section, quantity) {
-  if (!product.discount_tiers) return null;
-  const tiers = product.discount_tiers
-    .filter(t => t.section === section && quantity >= t.min_quantity)
-    .sort((a, b) => b.min_quantity - a.min_quantity);
-  return tiers[0] || null;
-}
-
+// ─── Price helpers ─────────────────────────────────────────────
 function getEffectivePrice(product, section, quantity) {
-  const basePrice = section === 'mayorista' ? product.price_mayo : product.price_pro;
-  const tier = getApplicableTier(product, section, quantity);
-  if (!tier) return { price: basePrice, tier: null, savings: 0 };
-  const discounted = Math.round(product.price_pro * (1 - tier.percentage / 100));
-  const savings = (product.price_pro - discounted) * quantity;
-  return { price: discounted, tier, savings };
+  const price = section === 'mayorista' ? product.price_mayo : product.price_pro;
+  const publicPrice = product.price_public || 0;
+  const savings = publicPrice > price ? (publicPrice - price) * (quantity || 1) : 0;
+  return { price, tier: null, savings };
 }
 
 window.getEffectivePrice = getEffectivePrice;
-window.getApplicableTier = getApplicableTier;
 
 // ─── Render list ──────────────────────────────────────────────
 window.renderProductList = function () {
@@ -59,39 +48,24 @@ function buildProductRow(product, section, rowNum) {
   const cartItem   = state.carts[section][`${product.id}_0`];
   const currentQty = cartItem ? cartItem.quantity : 0;
 
-  // Show web reference price when it differs from list price (always in mayo; in pro when discount tiers exist)
-  const hasTiersPro = section === 'profesional' && product.discount_tiers?.some(t => t.section === 'profesional');
-  const showWebRef  = section === 'mayorista' || hasTiersPro;
+  // Public price reference (shown whenever a public price is set)
+  const publicPrice   = product.price_public || 0;
+  const showPublicRef = publicPrice > 0;
+  const sectionLabel  = section === 'mayorista' ? 'Precio Mayorista' : 'Precio Profesional';
 
-  // Tier badges (PRO only)
-  const tiersHtml = hasTiersPro
-    ? product.discount_tiers
-        .filter(t => t.section === 'profesional')
-        .sort((a, b) => a.min_quantity - b.min_quantity)
-        .map(t => {
-          const dp = Math.round(product.price_pro * (1 - t.percentage / 100));
-          return `<div class="row-tier">
-            <span class="tier-threshold">+${t.min_quantity}</span>
-            <span class="tier-pct">${t.percentage}%</span>
-            <span class="tier-price">${fmt(dp)}</span>
-          </div>`;
-        }).join('')
-    : '';
+  // Effective stock: use first variant's stock if set, else product-level stock
+  const firstImg0 = images[0];
+  const firstEffectiveStock = (firstImg0 && firstImg0.stock > 0) ? firstImg0.stock : product.stock;
 
-  // Mayorista saving badge
-  const mayoSaving = section === 'mayorista'
-    ? (() => {
-        const pct = Math.round(((product.price_pro - product.price_mayo) / product.price_pro) * 100);
-        return `<div class="row-mayo-saving">${pct}% menos que precio web</div>`;
-      })()
-    : '';
-
-  // Stock badge
-  const stockHtml = product.stock === 0
-    ? `<span class="row-stock-badge row-stock-out">Sin stock</span>`
-    : product.stock <= 5
-      ? `<span class="row-stock-badge row-stock-low">Stock: ${product.stock}</span>`
-      : '';
+  // Stock badge (updates dynamically when color is switched)
+  function stockBadgeHtml(s) {
+    return s === 0
+      ? `<span class="row-stock-badge row-stock-out">Sin stock</span>`
+      : s <= 5
+        ? `<span class="row-stock-badge row-stock-low">Stock: ${s}</span>`
+        : '';
+  }
+  const stockHtml = `<div class="js-stock-badge-wrap">${stockBadgeHtml(firstEffectiveStock)}</div>`;
 
   // Color swatches — always shown if product has images
   const firstLabel = variantLabel(images[0]?.filename, 0);
@@ -105,6 +79,7 @@ function buildProductRow(product, section, rowNum) {
               data-swatch-idx="${i}"
               data-src="/productos/${product.slug}/${img.filename}"
               data-color-name="${label}"
+              data-stock="${img.stock || 0}"
               aria-label="${label}"
               title="${label}">
               <img src="/productos/${product.slug}/${img.filename}" alt="" loading="lazy">
@@ -156,13 +131,18 @@ function buildProductRow(product, section, rowNum) {
         <span class="row-price-value js-price-value" data-base="${basePrice}">${fmt(basePrice)}</span>
         <span class="row-price-unit">/un</span>
       </div>
-      ${showWebRef ? `<div class="row-web-price">
-        <span class="row-web-label">PRECIO WEB</span>
-        <span class="row-web-value">${fmt(webPrice)}</span>
-      </div>` : ''}
+      <div class="row-price-detail">
+        <div class="row-price-detail-row row-price-detail-section">
+          <span class="row-price-detail-label">${sectionLabel}</span>
+          <span class="row-price-detail-val">${fmt(basePrice)}</span>
+        </div>
+        ${showPublicRef ? `
+        <div class="row-price-detail-row row-price-detail-public">
+          <span class="row-price-detail-label">Precio Público</span>
+          <span class="row-price-detail-val">${fmt(publicPrice)}</span>
+        </div>` : ''}
+      </div>
     </div>
-    ${tiersHtml ? `<div class="row-tiers">${tiersHtml}</div>` : ''}
-    ${mayoSaving}
     <div class="row-savings js-dynamic-savings"></div>
     <div class="row-qty-stepper">
       <button class="qty-step-btn js-qty-minus" aria-label="Menos">−</button>
@@ -182,16 +162,30 @@ function setupRowInteractions(row) {
   const product   = state.products.find(p => p.id === productId);
   if (!product) return;
 
-  const qtyInput  = row.querySelector('.js-qty');
-  const savingsEl = row.querySelector('.js-dynamic-savings');
-  const stockWarn = row.querySelector('.js-stock-warning');
-  const minusBtn  = row.querySelector('.js-qty-minus');
-  const plusBtn   = row.querySelector('.js-qty-plus');
-  const nameEl    = row.querySelector('.js-swatch-name');
+  const qtyInput      = row.querySelector('.js-qty');
+  const savingsEl     = row.querySelector('.js-dynamic-savings');
+  const stockWarn     = row.querySelector('.js-stock-warning');
+  const stockBadgeWrap = row.querySelector('.js-stock-badge-wrap');
+  const minusBtn      = row.querySelector('.js-qty-minus');
+  const plusBtn       = row.querySelector('.js-qty-plus');
+  const nameEl        = row.querySelector('.js-swatch-name');
 
   // ── Variant / swatch selection ──────────────────────────────
   let selectedVariantIdx = 0;
   const mainImg = row.querySelector('.js-main-img');
+
+  // Effective stock for the currently selected variant
+  const firstImage = product.images && product.images[0];
+  let effectiveStock = (firstImage && firstImage.stock > 0) ? firstImage.stock : product.stock;
+
+  function renderStockBadge(s) {
+    if (!stockBadgeWrap) return;
+    stockBadgeWrap.innerHTML = s === 0
+      ? `<span class="row-stock-badge row-stock-out">Sin stock</span>`
+      : s <= 5
+        ? `<span class="row-stock-badge row-stock-low">Stock: ${s}</span>`
+        : '';
+  }
 
   row.querySelectorAll('.js-swatch').forEach(swatch => {
     swatch.addEventListener('click', (e) => {
@@ -210,6 +204,17 @@ function setupRowInteractions(row) {
       swatch.classList.add('active');
 
       if (nameEl) nameEl.textContent = swatch.dataset.colorName || swatch.title;
+
+      // Update effective stock for this variant
+      const variantStock = parseInt(swatch.dataset.stock) || 0;
+      effectiveStock = variantStock > 0 ? variantStock : product.stock;
+      renderStockBadge(effectiveStock);
+
+      // Reset qty to 0 (or existing cart qty for this color)
+      const newKey = `${productId}_${idx}`;
+      const existingItem = state.carts[section][newKey];
+      qtyInput.value = existingItem ? existingItem.quantity : 0;
+      updatePriceDisplay();
     });
   });
 
@@ -218,17 +223,15 @@ function setupRowInteractions(row) {
     const rawQty = parseInt(qtyInput.value) || 0;
     const qty    = Math.max(1, rawQty); // use ≥1 for price calc
 
-    const { price, tier, savings } = getEffectivePrice(product, section, qty);
+    const { price } = getEffectivePrice(product, section, qty);
     const priceEl = row.querySelector('.js-price-value');
     if (priceEl) priceEl.textContent = fmt(price);
 
     if (savingsEl) {
-      if (tier && section === 'profesional') {
-        savingsEl.textContent = `✓ ${tier.percentage}% OFF — ahorrás ${fmt(savings)}`;
-        savingsEl.style.display = 'block';
-      } else if (section === 'mayorista' && rawQty > 1) {
-        const totalSavings = (product.price_pro - product.price_mayo) * rawQty;
-        savingsEl.textContent = `Ahorrás ${fmt(totalSavings)} vs web`;
+      const publicPrice = product.price_public || 0;
+      if (publicPrice > price && rawQty > 0) {
+        const totalSavings = (publicPrice - price) * rawQty;
+        savingsEl.textContent = `Ahorrás ${fmt(totalSavings)} vs precio público`;
         savingsEl.style.display = 'block';
       } else {
         savingsEl.textContent = '';
@@ -237,10 +240,10 @@ function setupRowInteractions(row) {
     }
 
     if (stockWarn) {
-      if (rawQty > product.stock && product.stock > 0) {
-        stockWarn.textContent = `⚠ Stock: ${product.stock} un`;
+      if (rawQty > effectiveStock && effectiveStock > 0) {
+        stockWarn.textContent = `⚠ Stock: ${effectiveStock} un`;
         qtyInput.classList.add('stock-exceed');
-      } else if (product.stock === 0) {
+      } else if (effectiveStock === 0) {
         stockWarn.textContent = '⚠ Sin stock';
         qtyInput.classList.add('stock-exceed');
       } else {
@@ -258,7 +261,7 @@ function setupRowInteractions(row) {
     const key = `${productId}_${selectedVariantIdx}`;
     if (qty === 0) {
       if (state.carts[section][key]) window.removeFromCart(key, section);
-    } else if (product.stock > 0) {
+    } else if (effectiveStock > 0) {
       if (immediate) {
         window.addToCart(productId, qty, section, selectedVariantIdx, true);
       } else {

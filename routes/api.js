@@ -109,13 +109,13 @@ router.get('/admin/products', requireAdmin, (req, res) => {
 
 router.post('/admin/products', requireAdmin, (req, res) => {
   const db = getDb();
-  const { name, slug, description, contents, price_pro, price_mayo, stock, active, sort_order } = req.body;
+  const { name, slug, description, contents, price_pro, price_mayo, price_public, stock, active, sort_order } = req.body;
   if (!name || !slug) return res.status(400).json({ error: 'name y slug requeridos' });
 
   try {
     const result = db.prepare(`
-      INSERT INTO products (slug, name, description, contents, price_pro, price_mayo, stock, active, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO products (slug, name, description, contents, price_pro, price_mayo, price_public, stock, active, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       slug.trim().toLowerCase(),
       name.trim(),
@@ -123,6 +123,7 @@ router.post('/admin/products', requireAdmin, (req, res) => {
       (contents || '').trim(),
       parseInt(price_pro) || 0,
       parseInt(price_mayo) || 0,
+      parseInt(price_public) || 0,
       parseInt(stock) || 0,
       active == null ? 1 : (active ? 1 : 0),
       parseInt(sort_order) || 0
@@ -135,14 +136,17 @@ router.post('/admin/products', requireAdmin, (req, res) => {
 
 router.put('/admin/products/:id', requireAdmin, (req, res) => {
   const db = getDb();
-  const { name, description, contents, price_pro, price_mayo, stock, active, sort_order } = req.body;
+  const { name, description, contents, price_pro, price_mayo, price_public, stock, active, sort_order } = req.body;
   const existing = db.prepare(`SELECT * FROM products WHERE id = ?`).get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Producto no encontrado' });
+
+  // parseInt on empty string returns NaN which breaks sql.js — fall back to existing value
+  const safeInt = (v, fallback) => { const n = parseInt(v, 10); return Number.isInteger(n) ? n : fallback; };
 
   db.prepare(`
     UPDATE products SET
       name = ?, description = ?, contents = ?,
-      price_pro = ?, price_mayo = ?,
+      price_pro = ?, price_mayo = ?, price_public = ?,
       stock = ?, active = ?, sort_order = ?,
       updated_at = datetime('now')
     WHERE id = ?
@@ -150,11 +154,12 @@ router.put('/admin/products/:id', requireAdmin, (req, res) => {
     name != null ? name.trim() : existing.name,
     description != null ? description.trim() : existing.description,
     contents != null ? contents.trim() : existing.contents,
-    price_pro != null ? parseInt(price_pro) : existing.price_pro,
-    price_mayo != null ? parseInt(price_mayo) : existing.price_mayo,
-    stock != null ? parseInt(stock) : existing.stock,
+    safeInt(price_pro,    existing.price_pro),
+    safeInt(price_mayo,   existing.price_mayo),
+    safeInt(price_public, existing.price_public),
+    safeInt(stock,        existing.stock),
     active != null ? (active ? 1 : 0) : existing.active,
-    sort_order != null ? parseInt(sort_order) : existing.sort_order,
+    safeInt(sort_order,   existing.sort_order),
     req.params.id
   );
   res.json(getProductFull(req.params.id));

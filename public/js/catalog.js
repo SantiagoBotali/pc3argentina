@@ -283,33 +283,27 @@ window.openPreview = function(productId) {
        <button class="pv-nav pv-next">&#8250;</button>`
     : '';
 
-  const priceInfo = section === 'mayorista'
-    ? `<div class="pv-price-row">
-         <span class="pv-price-label">Precio Web</span>
-         <span class="pv-price-web">${fmt(product.price_pro)}/un</span>
-       </div>
-       <div class="pv-price-row">
-         <span class="pv-price-label">Precio Mayorista</span>
-         <span class="pv-price-main">${fmt(product.price_mayo)}/un</span>
-       </div>`
-    : `<div class="pv-price-row">
-         <span class="pv-price-label">Precio Web</span>
-         <span class="pv-price-main">${fmt(product.price_pro)}/un</span>
-       </div>`;
+  const sectionPrice = section === 'mayorista' ? product.price_mayo : product.price_pro;
+  const sectionLabel = section === 'mayorista' ? 'Precio Mayorista' : 'Precio Profesional';
+  const publicPrice  = product.price_public || 0;
 
-  const tiersHtml = section === 'profesional' && product.discount_tiers
-    ? product.discount_tiers
-        .filter(t => t.section === 'profesional')
-        .sort((a, b) => a.min_quantity - b.min_quantity)
-        .map(t => {
-          const discounted = Math.round(product.price_pro * (1 - t.percentage / 100));
-          return `<div class="pv-tier">
-            <span class="pv-tier-qty">+${t.min_quantity} un</span>
-            <span class="pv-tier-pct">${t.percentage}% OFF</span>
-            <span class="pv-tier-price">${fmt(discounted)}/un</span>
-          </div>`;
-        }).join('')
-    : '';
+  const priceInfo = `
+    <div class="pv-price-hero">
+      <span class="pv-price-main">${fmt(sectionPrice)}</span>
+      <span class="pv-price-unit">/un</span>
+    </div>
+    <div class="pv-price-detail">
+      <div class="pv-price-detail-row pv-price-detail-section">
+        <span class="pv-price-detail-label">${sectionLabel}</span>
+        <span class="pv-price-detail-val">${fmt(sectionPrice)}</span>
+      </div>
+      ${publicPrice > 0 ? `
+      <div class="pv-price-detail-row pv-price-detail-public">
+        <span class="pv-price-detail-label">Precio Público</span>
+        <span class="pv-price-detail-val">${fmt(publicPrice)}</span>
+      </div>` : ''}
+    </div>
+  `;
 
   const stockBadge = product.stock === 0
     ? `<span class="pv-stock-badge pv-stock-out">Sin stock</span>`
@@ -333,7 +327,6 @@ window.openPreview = function(productId) {
 
       <div class="pv-pricing">
         ${priceInfo}
-        ${tiersHtml ? `<div class="pv-tiers">${tiersHtml}</div>` : ''}
       </div>
 
       <div class="pv-actions">
@@ -380,12 +373,10 @@ window.openPreview = function(productId) {
 
   const updateSavings = () => {
     const qty = parseInt(qtyInput.value) || 1;
-    const { price, tier, savings } = getEffectivePrice(product, section, qty);
-    if (tier && section === 'profesional') {
-      savingsEl.textContent = `✓ ${tier.percentage}% OFF — Ahorrás ${fmt(savings)} en este pedido`;
-    } else if (section === 'mayorista' && qty > 1) {
-      const totalSavings = (product.price_pro - product.price_mayo) * qty;
-      savingsEl.textContent = `Ahorrás ${fmt(totalSavings)} vs precio web`;
+    const sp = section === 'mayorista' ? product.price_mayo : product.price_pro;
+    const pub = product.price_public || 0;
+    if (pub > sp) {
+      savingsEl.textContent = `Ahorrás ${fmt((pub - sp) * qty)} vs precio público`;
     } else {
       savingsEl.textContent = '';
     }

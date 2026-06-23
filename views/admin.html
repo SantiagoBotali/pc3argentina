@@ -81,6 +81,20 @@
   </div>
 </div>
 
+<!-- ─── Stock Modal ───────────────────────────────────────────── -->
+<div class="stock-modal-overlay" id="stock-modal-overlay"></div>
+<div class="stock-modal" id="stock-modal">
+  <div class="stock-modal-header">
+    <h3 id="stock-modal-title">Gestionar Stock</h3>
+    <button class="btn btn-ghost btn-sm" id="close-stock-modal">✕</button>
+  </div>
+  <div class="stock-modal-body" id="stock-modal-body"></div>
+  <div class="stock-modal-footer">
+    <button class="btn btn-ghost" id="cancel-stock-modal">Cancelar</button>
+    <button class="btn btn-primary" id="save-stock-modal">Guardar stock</button>
+  </div>
+</div>
+
 <!-- ─── Toast Container ───────────────────────────────────────── -->
 <div id="admin-toasts" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none"></div>
 
@@ -91,6 +105,10 @@
     document.getElementById('edit-panel')?.classList.remove('open');
     document.getElementById('panel-overlay')?.classList.remove('visible');
   });
+  // Stock modal close buttons
+  document.getElementById('close-stock-modal')?.addEventListener('click', closeStockModal);
+  document.getElementById('cancel-stock-modal')?.addEventListener('click', closeStockModal);
+  document.getElementById('stock-modal-overlay')?.addEventListener('click', closeStockModal);
 </script>
 
 </body>

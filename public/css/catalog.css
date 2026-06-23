@@ -802,26 +802,42 @@ body.section-mayorista   #cart-btn-pro  { display: none; }
   color: var(--color-text-faint);
 }
 
-.row-web-price {
+.row-price-detail {
   display: flex;
-  align-items: center;
-  gap: 5px;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
 }
 
-.row-web-label {
+.row-price-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.row-price-detail-label {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   color: var(--color-text-faint);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.row-web-value {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-danger);
-  text-decoration: line-through;
-  text-decoration-thickness: 1.5px;
+.row-price-detail-section .row-price-detail-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.row-price-detail-public .row-price-detail-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-accent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1158,34 +1174,62 @@ body.section-mayorista   #cart-btn-pro  { display: none; }
   gap: 8px;
 }
 
-.pv-price-row {
+.pv-price-hero {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.pv-price-label {
-  font-size: 11px;
-  color: var(--color-text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
+  gap: 4px;
 }
 
 .pv-price-main {
-  font-size: 28px;
+  font-size: 36px;
   font-weight: 800;
   color: var(--color-accent);
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
-.pv-price-web {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-muted);
+.pv-price-unit {
+  font-size: 13px;
+  color: var(--color-text-faint);
+}
+
+.pv-price-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.pv-price-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pv-price-detail-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+}
+
+.pv-price-detail-section .pv-price-detail-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.pv-price-detail-public .pv-price-detail-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .pv-tiers {

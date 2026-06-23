@@ -29,7 +29,7 @@ function renderCheckoutModal(section, stockIssues) {
   const summaryItems = items.map(item => {
     const product = state.products.find(p => p.id === item.productId);
     if (!product) return '';
-    const { price, tier } = getEffectivePrice(product, section, item.quantity);
+    const { price } = getEffectivePrice(product, section, item.quantity);
     const subtotal = price * item.quantity;
     const colorSuffix = item.colorName ? ` (${item.colorName})` : '';
     return `
@@ -38,7 +38,6 @@ function renderCheckoutModal(section, stockIssues) {
         <span class="order-summary-qty">× ${item.quantity}</span>
         <span class="order-summary-price">${fmt(subtotal)}</span>
       </div>
-      ${tier ? `<div style="font-size:11px;color:var(--color-success);margin-top:-4px;margin-bottom:2px">  ✓ ${tier.percentage}% OFF</div>` : ''}
     `;
   }).join('');
 
@@ -223,18 +222,17 @@ function sendWhatsApp(section, stockIssues) {
   for (const item of items) {
     const product = state.products.find(p => p.id === item.productId);
     if (!product) continue;
-    const { price, tier, savings } = getEffectivePrice(product, section, item.quantity);
+    const { price, savings } = getEffectivePrice(product, section, item.quantity);
     const subtotal = price * item.quantity;
     total += subtotal;
     totalSavings += savings;
 
     const colorSuffix = item.colorName ? ` (${item.colorName})` : '';
     lines.push(`• ${product.name}${colorSuffix} × ${item.quantity} un = ${fmt(subtotal)}`);
-    if (tier) lines.push(`  ✅ Precio con ${tier.percentage}% OFF (x${tier.min_quantity}+ unidades)`);
   }
 
   lines.push('');
-  if (totalSavings > 0) lines.push(`💰 Total ahorrado con descuentos: ${fmt(totalSavings)}`);
+  if (totalSavings > 0) lines.push(`💰 Total ahorrado vs precio público: ${fmt(totalSavings)}`);
   lines.push(`*TOTAL: ${fmt(total)}*`);
   lines.push('');
 
