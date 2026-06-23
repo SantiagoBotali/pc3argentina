@@ -100,7 +100,7 @@ function buildProductRow(product, section, rowNum) {
         <span class="row-swatches-label">COLOR</span>
         <div class="row-swatch-circles">
           ${images.map((img, i) => {
-            const label = variantLabel(img.filename, i);
+            const label = img.color_name || variantLabel(img.filename, i);
             return `<button class="row-swatch js-swatch ${i === 0 ? 'active' : ''}"
               data-swatch-idx="${i}"
               data-src="/productos/${product.slug}/${img.filename}"

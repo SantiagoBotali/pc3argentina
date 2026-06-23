@@ -215,6 +215,7 @@ router.delete('/admin/products/:id/images/:imgId', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// NOTE: this literal route must be registered BEFORE the /:imgId wildcard below
 router.put('/admin/products/:id/images/reorder', requireAdmin, (req, res) => {
   const db = getDb();
   const { order } = req.body;

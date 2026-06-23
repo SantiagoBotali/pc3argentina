@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(ls -lah /c/Users/santi/OneDrive/Desktop/PC3/PC3logo*.png)"
+      "Bash(ls -lah /c/Users/santi/OneDrive/Desktop/PC3/PC3logo*.png)",
+      "Bash(bash \"C:/Users/santi/.claude/plugins/cache/claude-plugins-official/superpowers/6.0.2/skills/subagent-driven-development/scripts/review-package\" \"27bf81996853497129056d558bfaed4cd90c2914\" HEAD)"
     ]
   }
 }

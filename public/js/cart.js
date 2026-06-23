@@ -6,7 +6,9 @@ window.addToCart = function(productId, quantity, section, variantIdx, silent) {
 
   const idx = variantIdx != null ? variantIdx : 0;
   const image = product.images && product.images[idx];
-  const colorName = (image && image.color_name) ? image.color_name : '';
+  const colorName = (image && image.color_name)
+    ? image.color_name
+    : (image ? (`Var. ${idx + 1}`) : '');
   const imageStock = (image && image.stock > 0) ? image.stock : product.stock;
   const stockIssue = quantity > imageStock;
   const key = `${productId}_${idx}`;
