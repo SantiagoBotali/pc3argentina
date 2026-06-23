@@ -9,7 +9,7 @@ window.openCheckout = async function(section) {
     const res = await fetch('/api/validate-stock', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: items.map(i => ({ product_id: i.productId, quantity: i.quantity })) })
+      body: JSON.stringify({ items: items.map(i => ({ product_id: i.productId, variant_idx: i.variantIdx, quantity: i.quantity })) })
     });
     const data = await res.json();
     if (!data.valid) stockIssues = data.issues || [];
@@ -31,9 +31,10 @@ function renderCheckoutModal(section, stockIssues) {
     if (!product) return '';
     const { price, tier } = getEffectivePrice(product, section, item.quantity);
     const subtotal = price * item.quantity;
+    const colorSuffix = item.colorName ? ` (${item.colorName})` : '';
     return `
       <div class="order-summary-item">
-        <span class="order-summary-name">${product.name}</span>
+        <span class="order-summary-name">${product.name}${colorSuffix}</span>
         <span class="order-summary-qty">× ${item.quantity}</span>
         <span class="order-summary-price">${fmt(subtotal)}</span>
       </div>
@@ -81,6 +82,31 @@ function renderCheckoutModal(section, stockIssues) {
         ${stockWarningHtml}
 
         <div class="checkout-section-header" style="margin-top:16px">
+          <h4>Tipo de comprobante</h4>
+        </div>
+
+        <div class="form-group">
+          <div class="delivery-options" style="flex-wrap:wrap;gap:6px">
+            <label class="delivery-option selected" id="opt-cf">
+              <input type="radio" name="comprobante" value="Consumidor Final A" checked>
+              <span class="delivery-option-label">Consumidor Final A</span>
+            </label>
+            <label class="delivery-option" id="opt-mono">
+              <input type="radio" name="comprobante" value="Monotributo A">
+              <span class="delivery-option-label">Monotributo A</span>
+            </label>
+            <label class="delivery-option" id="opt-ri">
+              <input type="radio" name="comprobante" value="Responsable Inscripto B">
+              <span class="delivery-option-label">Responsable Inscripto B</span>
+            </label>
+            <label class="delivery-option" id="opt-iva">
+              <input type="radio" name="comprobante" value="IVA Exento">
+              <span class="delivery-option-label">IVA Exento</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="checkout-section-header" style="margin-top:16px">
           <h4>Tus datos</h4>
         </div>
 
@@ -97,22 +123,22 @@ function renderCheckoutModal(section, stockIssues) {
         <div class="form-group">
           <label class="form-label">Tipo de entrega *</label>
           <div class="delivery-options">
-            <label class="delivery-option selected" id="opt-envio">
-              <input type="radio" name="delivery" value="envio" checked>
-              <span class="delivery-option-icon">🚚</span>
-              <span class="delivery-option-label">Envío a domicilio</span>
-              <span class="delivery-option-desc">Te llegamos</span>
-            </label>
-            <label class="delivery-option" id="opt-retiro">
-              <input type="radio" name="delivery" value="retiro">
+            <label class="delivery-option selected" id="opt-retiro">
+              <input type="radio" name="delivery" value="retiro" checked>
               <span class="delivery-option-icon">🏪</span>
               <span class="delivery-option-label">Retiro en sucursal</span>
               <span class="delivery-option-desc">Pasás a buscar</span>
             </label>
+            <label class="delivery-option" id="opt-andreani">
+              <input type="radio" name="delivery" value="andreani">
+              <span class="delivery-option-icon">📦</span>
+              <span class="delivery-option-label">Andreani</span>
+              <span class="delivery-option-desc">Envío a domicilio</span>
+            </label>
           </div>
         </div>
 
-        <div class="form-group" id="address-group">
+        <div class="form-group" id="address-group" style="display:none">
           <label class="form-label">Dirección de envío *</label>
           <input type="text" id="checkout-address" class="form-control" placeholder="Calle, número, ciudad">
         </div>
@@ -132,14 +158,25 @@ function renderCheckoutModal(section, stockIssues) {
 
   document.body.appendChild(modal);
 
-  // Delivery option toggle
-  modal.querySelectorAll('.delivery-option').forEach(opt => {
+  // Comprobante option toggle
+  modal.querySelectorAll('#opt-cf, #opt-mono, #opt-ri, #opt-iva').forEach(opt => {
     opt.addEventListener('click', () => {
-      modal.querySelectorAll('.delivery-option').forEach(o => o.classList.remove('selected'));
+      modal.querySelectorAll('[name="comprobante"]').forEach(r => r.closest('.delivery-option').classList.remove('selected'));
       opt.classList.add('selected');
       opt.querySelector('input').checked = true;
-      const isEnvio = opt.querySelector('input').value === 'envio';
-      document.getElementById('address-group').style.display = isEnvio ? 'block' : 'none';
+    });
+  });
+
+  // Delivery option toggle
+  modal.querySelectorAll('.delivery-option').forEach(opt => {
+    const radio = opt.querySelector('input[name="delivery"]');
+    if (!radio) return;
+    opt.addEventListener('click', () => {
+      modal.querySelectorAll('input[name="delivery"]').forEach(r => r.closest('.delivery-option').classList.remove('selected'));
+      opt.classList.add('selected');
+      radio.checked = true;
+      const isAndreani = radio.value === 'andreani';
+      document.getElementById('address-group').style.display = isAndreani ? 'block' : 'none';
     });
   });
 
@@ -161,13 +198,14 @@ function sendWhatsApp(section, stockIssues) {
   const deliveryEl = document.querySelector('input[name="delivery"]:checked');
   const delivery = deliveryEl?.value;
   const address = document.getElementById('checkout-address')?.value.trim();
+  const comprobanteEl = document.querySelector('input[name="comprobante"]:checked');
+  const comprobante = comprobanteEl?.value || 'Consumidor Final A';
 
   const errorEl = document.getElementById('checkout-form-error');
 
-  // Validation
   if (!name) { showError(errorEl, 'Ingresá tu nombre y apellido'); return; }
   if (!phone) { showError(errorEl, 'Ingresá tu teléfono'); return; }
-  if (delivery === 'envio' && !address) { showError(errorEl, 'Ingresá la dirección de envío'); return; }
+  if (delivery === 'andreani' && !address) { showError(errorEl, 'Ingresá la dirección de envío'); return; }
 
   errorEl.style.display = 'none';
 
@@ -190,7 +228,8 @@ function sendWhatsApp(section, stockIssues) {
     total += subtotal;
     totalSavings += savings;
 
-    lines.push(`• ${product.name} × ${item.quantity} un = ${fmt(subtotal)}`);
+    const colorSuffix = item.colorName ? ` (${item.colorName})` : '';
+    lines.push(`• ${product.name}${colorSuffix} × ${item.quantity} un = ${fmt(subtotal)}`);
     if (tier) lines.push(`  ✅ Precio con ${tier.percentage}% OFF (x${tier.min_quantity}+ unidades)`);
   }
 
@@ -199,11 +238,12 @@ function sendWhatsApp(section, stockIssues) {
   lines.push(`*TOTAL: ${fmt(total)}*`);
   lines.push('');
 
+  lines.push(`🧾 Comprobante: ${comprobante}`);
   lines.push(`👤 Nombre: ${name}`);
   lines.push(`📱 Teléfono: ${phone}`);
 
-  if (delivery === 'envio') {
-    lines.push(`📦 Envío a: ${address}`);
+  if (delivery === 'andreani') {
+    lines.push(`📦 Envío Andreani a: ${address}`);
   } else {
     lines.push(`🏪 Retiro en sucursal`);
   }
@@ -222,7 +262,6 @@ function sendWhatsApp(section, stockIssues) {
 
   window.open(url, '_blank');
 
-  // Offer to clear cart
   setTimeout(() => {
     document.getElementById('checkout-modal')?.remove();
     showClearCartPrompt(section);
