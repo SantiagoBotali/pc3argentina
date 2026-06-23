@@ -76,8 +76,23 @@ router.post('/validate-stock', (req, res) => {
   for (const item of items) {
     const product = db.prepare(`SELECT id, name, stock FROM products WHERE id = ?`).get(item.product_id);
     if (!product) continue;
-    if (item.quantity > product.stock) {
-      issues.push({ product_id: product.id, name: product.name, available: product.stock, requested: item.quantity });
+
+    // Use per-color stock when variant_idx is provided and the image has stock > 0
+    let availableStock = product.stock;
+    if (item.variant_idx != null) {
+      const img = db.prepare(
+        `SELECT stock FROM product_images WHERE product_id = ? AND sort_order = ?`
+      ).get(item.product_id, item.variant_idx);
+      if (img && img.stock > 0) availableStock = img.stock;
+    }
+
+    if (item.quantity > availableStock) {
+      issues.push({
+        product_id: product.id,
+        name: product.name,
+        available: availableStock,
+        requested: item.quantity
+      });
     }
   }
   res.json({ valid: issues.length === 0, issues });
@@ -208,6 +223,24 @@ router.put('/admin/products/:id/images/reorder', requireAdmin, (req, res) => {
   const update = db.prepare(`UPDATE product_images SET sort_order = ? WHERE id = ?`);
   db.transaction(() => order.forEach(({ id, sort_order }) => update.run(sort_order, id)))();
   res.json({ ok: true });
+});
+
+router.put('/admin/products/:id/images/:imgId', requireAdmin, (req, res) => {
+  const db = getDb();
+  const { color_name, stock } = req.body;
+  const img = db.prepare(
+    `SELECT * FROM product_images WHERE id = ? AND product_id = ?`
+  ).get(req.params.imgId, req.params.id);
+  if (!img) return res.status(404).json({ error: 'Imagen no encontrada' });
+
+  db.prepare(
+    `UPDATE product_images SET color_name = ?, stock = ? WHERE id = ?`
+  ).run(
+    color_name != null ? String(color_name).trim() : img.color_name,
+    stock != null ? parseInt(stock) : img.stock,
+    req.params.imgId
+  );
+  res.json(db.prepare(`SELECT * FROM product_images WHERE id = ?`).get(req.params.imgId));
 });
 
 router.post('/admin/products/:id/tiers', requireAdmin, (req, res) => {
