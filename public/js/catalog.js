@@ -423,8 +423,29 @@ function closePreview() {
 function loadCartFromStorage() {
   try {
     const saved = localStorage.getItem('pc3_carts');
-    if (saved) state.carts = JSON.parse(saved);
-  } catch (e) { /* ignore */ }
+    if (!saved) return;
+    const parsed = JSON.parse(saved);
+
+    const migrate = (cart) => {
+      if (!cart) return {};
+      const migrated = {};
+      for (const [key, item] of Object.entries(cart)) {
+        // Old format: key is a plain number (productId). New: "productId_variantIdx"
+        const newKey = String(key).includes('_') ? key : `${key}_${item.variantIdx || 0}`;
+        migrated[newKey] = {
+          ...item,
+          variantIdx: item.variantIdx || 0,
+          colorName: item.colorName || ''
+        };
+      }
+      return migrated;
+    };
+
+    state.carts = {
+      profesional: migrate(parsed.profesional),
+      mayorista: migrate(parsed.mayorista)
+    };
+  } catch (e) { /* ignore corrupt storage */ }
 }
 
 function saveCartToStorage() {

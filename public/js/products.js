@@ -255,8 +255,9 @@ function setupRowInteractions(row) {
 
   const syncCart = (qty, immediate = false) => {
     clearTimeout(autoAddTimer);
+    const key = `${productId}_${selectedVariantIdx}`;
     if (qty === 0) {
-      if (state.carts[section][productId]) window.removeFromCart(productId, section);
+      if (state.carts[section][key]) window.removeFromCart(key, section);
     } else if (product.stock > 0) {
       if (immediate) {
         window.addToCart(productId, qty, section, selectedVariantIdx, true);

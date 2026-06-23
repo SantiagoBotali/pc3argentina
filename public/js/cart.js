@@ -4,35 +4,40 @@ window.addToCart = function(productId, quantity, section, variantIdx, silent) {
   const product = state.products.find(p => p.id === productId);
   if (!product) return;
 
-  const stockIssue = quantity > product.stock;
-  const prevVariant = state.carts[s][productId]?.variantIdx;
-  state.carts[s][productId] = {
-    productId,
-    quantity,
-    stockIssue,
-    variantIdx: variantIdx != null ? variantIdx : (prevVariant || 0)
-  };
+  const idx = variantIdx != null ? variantIdx : 0;
+  const image = product.images && product.images[idx];
+  const colorName = (image && image.color_name) ? image.color_name : '';
+  const imageStock = (image && image.stock > 0) ? image.stock : product.stock;
+  const stockIssue = quantity > imageStock;
+  const key = `${productId}_${idx}`;
 
+  state.carts[s][key] = { productId, quantity, stockIssue, variantIdx: idx, colorName };
   saveCartToStorage();
   updateCartUI();
-  if (!silent) showToast(`${product.name} agregado al carrito`, 'success');
+  if (!silent) {
+    const colorSuffix = colorName ? ` (${colorName})` : '';
+    showToast(`${product.name}${colorSuffix} agregado al carrito`, 'success');
+  }
 };
 
-window.removeFromCart = function(productId, section) {
+window.removeFromCart = function(key, section) {
   const s = section || state.activeSection;
-  delete state.carts[s][productId];
+  delete state.carts[s][key];
   saveCartToStorage();
   updateCartUI();
 };
 
-window.updateCartQty = function(productId, quantity, section) {
+window.updateCartQty = function(key, quantity, section) {
   const s = section || state.activeSection;
-  if (quantity < 1) return removeFromCart(productId, s);
-  const product = state.products.find(p => p.id === productId);
+  if (quantity < 1) return removeFromCart(key, s);
+  const existing = state.carts[s][key];
+  if (!existing) return;
+  const product = state.products.find(p => p.id === existing.productId);
   if (!product) return;
-  const stockIssue = quantity > product.stock;
-  const existing = state.carts[s][productId];
-  state.carts[s][productId] = { productId, quantity, stockIssue, variantIdx: existing?.variantIdx || 0 };
+  const image = product.images && product.images[existing.variantIdx];
+  const imageStock = (image && image.stock > 0) ? image.stock : product.stock;
+  const stockIssue = quantity > imageStock;
+  state.carts[s][key] = { ...existing, quantity, stockIssue };
   saveCartToStorage();
   updateCartUI();
 };
@@ -126,24 +131,35 @@ window.renderCartSidebar = function(section) {
 
       itemsEl.querySelectorAll('.cart-qty-minus').forEach(btn => {
         btn.addEventListener('click', () => {
-          const id = parseInt(btn.dataset.id);
-          const item = state.carts[section][id];
-          if (item) updateCartQty(id, item.quantity - 1, section);
+          const key = btn.dataset.key;
+          const item = state.carts[section][key];
+          if (item) updateCartQty(key, item.quantity - 1, section);
         });
       });
 
       itemsEl.querySelectorAll('.cart-qty-plus').forEach(btn => {
         btn.addEventListener('click', () => {
-          const id = parseInt(btn.dataset.id);
-          const item = state.carts[section][id];
-          if (item) updateCartQty(id, item.quantity + 1, section);
+          const key = btn.dataset.key;
+          const item = state.carts[section][key];
+          if (item) updateCartQty(key, item.quantity + 1, section);
+        });
+      });
+
+      itemsEl.querySelectorAll('.cart-item-qty-input').forEach(input => {
+        input.addEventListener('change', () => {
+          const key = input.dataset.key;
+          const qty = parseInt(input.value) || 1;
+          updateCartQty(key, Math.max(1, qty), section);
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') input.blur();
         });
       });
 
       itemsEl.querySelectorAll('.cart-item-remove').forEach(btn => {
         btn.addEventListener('click', () => {
-          const id = parseInt(btn.dataset.id);
-          removeFromCart(id, section);
+          const key = btn.dataset.key;
+          removeFromCart(key, section);
         });
       });
     }
@@ -187,11 +203,13 @@ function buildCartItemHTML(item, section) {
   const product = state.products.find(p => p.id === item.productId);
   if (!product) return '';
 
+  const key = `${item.productId}_${item.variantIdx}`;
   const { price, tier } = getEffectivePrice(product, section, item.quantity);
   const subtotal = price * item.quantity;
   const variantIdx = item.variantIdx || 0;
   const firstImg = product.images && product.images[variantIdx];
   const imgSrc = firstImg ? `/productos/${product.slug}/${firstImg.filename}` : '';
+  const colorLabel = item.colorName ? ` — ${item.colorName}` : '';
 
   return `
   <div class="cart-item ${item.stockIssue ? 'has-stock-issue' : ''}">
@@ -199,17 +217,18 @@ function buildCartItemHTML(item, section) {
       ${imgSrc ? `<img src="${imgSrc}" alt="${product.name}">` : ''}
     </div>
     <div class="cart-item-info">
-      <div class="cart-item-name">${product.name}</div>
+      <div class="cart-item-name">${product.name}${colorLabel}</div>
       ${tier ? `<div class="cart-item-discount">✓ ${tier.percentage}% OFF aplicado</div>` : ''}
-      ${item.stockIssue ? `<div class="cart-stock-warning">⚠ Stock: ${product.stock} disponibles</div>` : ''}
+      ${item.stockIssue ? `<div class="cart-stock-warning">⚠ Stock insuficiente</div>` : ''}
       <div class="cart-item-qty-row">
-        <button class="cart-qty-btn cart-qty-minus" data-id="${product.id}">−</button>
-        <span class="cart-item-qty">${item.quantity}</span>
-        <button class="cart-qty-btn cart-qty-plus" data-id="${product.id}">+</button>
+        <button class="cart-qty-btn cart-qty-minus" data-key="${key}">−</button>
+        <input type="number" class="cart-qty-btn cart-item-qty-input" data-key="${key}" value="${item.quantity}" min="1"
+          style="width:48px;text-align:center;border:1px solid var(--color-border);border-radius:4px;background:var(--color-surface2);color:var(--color-text);padding:2px 4px;font-size:13px">
+        <button class="cart-qty-btn cart-qty-plus" data-key="${key}">+</button>
         <span class="cart-item-subtotal">${fmt(subtotal)}</span>
       </div>
     </div>
-    <button class="cart-item-remove" data-id="${product.id}" aria-label="Eliminar">
+    <button class="cart-item-remove" data-key="${key}" aria-label="Eliminar">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
