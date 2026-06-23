@@ -85,6 +85,18 @@ async function init() {
     );
   `);
 
+  // Migrate: add color_name and stock to product_images if not present
+  const piCols = sqlDb.exec('PRAGMA table_info(product_images)');
+  if (piCols.length > 0) {
+    const existingCols = piCols[0].values.map(row => row[1]);
+    if (!existingCols.includes('color_name')) {
+      sqlDb.run("ALTER TABLE product_images ADD COLUMN color_name TEXT NOT NULL DEFAULT ''");
+    }
+    if (!existingCols.includes('stock')) {
+      sqlDb.run("ALTER TABLE product_images ADD COLUMN stock INTEGER NOT NULL DEFAULT 0");
+    }
+  }
+
   save();
   return proxy;
 }
