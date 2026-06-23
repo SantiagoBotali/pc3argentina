@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PC3 Argentina — Catálogo</title>
+  <meta name="description" content="Catálogo de vendajes deportivos PC3 Argentina. Listas Profesional y Mayorista.">
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/catalog.css">
+  <link rel="icon" type="image/png" href="/PC3logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script>
+    if (localStorage.getItem('pc3_theme') === 'light') document.documentElement.classList.add('light');
+  </script>
+</head>
+<body class="section-profesional">
+
+<!-- ─── Header ──────────────────────────────────────────────────── -->
+<header class="site-header">
+  <div class="header-inner">
+    <a class="header-logo" href="/">
+      <img src="/PC3logo.png" alt="PC3 Argentina" onerror="this.style.display='none'">
+    </a>
+    <div class="header-actions">
+      <button class="theme-toggle" id="theme-toggle" aria-label="Cambiar tema">
+        <svg class="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <svg class="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+      <button class="cart-tab-btn" id="cart-btn-pro" data-cart-tab="profesional" aria-label="Carrito Profesional">
+        <span class="cart-btn-icon-wrap">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          <span class="cart-btn-badge" id="cart-count-pro" style="display:none">0</span>
+        </span>
+        <span class="cart-btn-label">PRO</span>
+      </button>
+      <button class="cart-tab-btn cart-tab-btn--mayo" id="cart-btn-mayo" data-cart-tab="mayorista" aria-label="Carrito Mayorista">
+        <span class="cart-btn-icon-wrap">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+          <span class="cart-btn-badge" id="cart-count-mayo" style="display:none">0</span>
+        </span>
+        <span class="cart-btn-label">MAY</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ─── Guide Toggle ─────────────────────────────────────────── -->
+<button class="guide-toggle" id="guide-toggle" aria-expanded="true">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+  </svg>
+  <span class="toggle-text">▴ Ocultar guía</span>
+</button>
+
+<!-- ─── Guide Banner ──────────────────────────────────────────── -->
+<div class="guide-banner" id="guide-banner">
+  <div class="guide-inner">
+    <p class="guide-pretext">Seguí estos <strong>3 pasos</strong> y enviá tu pedido por WhatsApp.</p>
+    <div class="guide-cards">
+
+      <div class="guide-card">
+        <div class="guide-card-lead">
+          <span class="guide-card-num">1</span>
+          <span class="guide-card-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </span>
+        </div>
+        <div class="guide-card-title">Elegí tu lista</div>
+        <div class="guide-card-desc">Tocá Profesional o Mayorista. Cada lista tiene sus propios precios y monto mínimo de compra.</div>
+      </div>
+
+      <span class="guide-arrow">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>
+        </svg>
+      </span>
+
+      <div class="guide-card">
+        <div class="guide-card-lead">
+          <span class="guide-card-num">2</span>
+          <span class="guide-card-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/>
+            </svg>
+          </span>
+        </div>
+        <div class="guide-card-title">Sumá la cantidad</div>
+        <div class="guide-card-desc">Usá los botones + / − para ingresar la cantidad. El precio con descuento se actualiza solo.</div>
+      </div>
+
+      <span class="guide-arrow">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>
+        </svg>
+      </span>
+
+      <div class="guide-card">
+        <div class="guide-card-lead">
+          <span class="guide-card-num">3</span>
+          <span class="guide-card-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.6 3.42 2 2 0 0 1 3.59 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.84a16 16 0 0 0 6.29 6.29l.94-.94a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </span>
+        </div>
+        <div class="guide-card-title">Enviá el pedido</div>
+        <div class="guide-card-desc">Abrí el carrito, completá tus datos y mandá el pedido por WhatsApp en un clic.</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ─── Section Selector ─────────────────────────────────────── -->
+<div class="section-selector-wrapper">
+  <div class="section-selector">
+
+    <button class="section-card active" id="section-card-pro" data-section="profesional">
+      <div class="section-card-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div class="section-card-body">
+        <div class="section-card-name">Profesional</div>
+        <div class="section-card-desc">Precios para profesionales de la salud y el deporte</div>
+        <div class="section-card-min" id="section-min-label-pro">—</div>
+      </div>
+      <div class="section-card-tag">PRO</div>
+      <div class="section-card-check">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+    </button>
+
+    <button class="section-card" id="section-card-mayo" data-section="mayorista">
+      <div class="section-card-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+      </div>
+      <div class="section-card-body">
+        <div class="section-card-name">Mayorista</div>
+        <div class="section-card-desc">Precios para revendedores y distribuidores</div>
+        <div class="section-card-min" id="section-min-label-mayo">—</div>
+      </div>
+      <div class="section-card-tag">MAY</div>
+      <div class="section-card-check">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+    </button>
+
+  </div>
+</div>
+
+<!-- ─── Product List ──────────────────────────────────────────── -->
+<main class="catalog-main">
+  <div id="product-list" class="product-list">
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row"></div>
+  </div>
+</main>
+
+<!-- ─── Product Preview Modal ────────────────────────────────── -->
+<div class="preview-overlay hidden" id="preview-modal">
+  <div class="preview-box" id="preview-box" role="dialog" aria-label="Vista previa del producto">
+    <button class="preview-close" id="preview-close" aria-label="Cerrar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+    <div class="preview-content" id="preview-content"></div>
+  </div>
+</div>
+
+<!-- ─── Cart Overlay ──────────────────────────────────────────── -->
+<div class="cart-overlay" id="cart-overlay"></div>
+
+<!-- ─── Cart Sidebar ──────────────────────────────────────────── -->
+<aside class="cart-sidebar" id="cart-sidebar" role="dialog" aria-label="Carrito de compras">
+  <div class="cart-header">
+    <div class="cart-header-top">
+      <h3>Carrito</h3>
+      <button class="close-cart" id="close-cart" aria-label="Cerrar carrito">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="cart-tabs-header">
+      <button class="cart-section-tab active" id="cart-tab-pro" data-cart-section="profesional">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+        Profesional
+        <span class="cart-section-tab-count" id="sidebar-count-pro">0</span>
+      </button>
+      <button class="cart-section-tab" id="cart-tab-mayo" data-cart-section="mayorista">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        Mayorista
+        <span class="cart-section-tab-count" id="sidebar-count-mayo">0</span>
+      </button>
+    </div>
+  </div>
+  <div class="cart-items" id="cart-items">
+    <div class="cart-empty">
+      <div class="cart-empty-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+      </div>
+      <div class="fw-bold">Tu carrito está vacío</div>
+      <div class="text-sm text-muted">Agregá productos desde el catálogo</div>
+    </div>
+  </div>
+  <div class="cart-footer" id="cart-summary"></div>
+</aside>
+
+<!-- ─── Toast Container ───────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ─── Floating Actions ─────────────────────────────────────── -->
+<div class="fab-group">
+  <a class="fab fab-whatsapp" id="fab-whatsapp" href="https://wa.me/5493492310744" target="_blank" rel="noopener noreferrer" aria-label="Contactar por WhatsApp">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+    </svg>
+  </a>
+
+  <button class="fab fab-cart fab-cart--pro fab-active" id="fab-cart-pro" aria-label="Abrir carrito Profesional">
+    <div class="fab-cart-icon-wrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 0 1-8 0"/>
+      </svg>
+      <span class="fab-cart-badge" id="fab-badge-pro" style="display:none">0</span>
+    </div>
+    <div class="fab-cart-label">
+      <span class="fab-cart-title">Carrito PRO</span>
+      <span class="fab-cart-subtitle" id="fab-sub-pro">Vacío</span>
+    </div>
+  </button>
+
+  <button class="fab fab-cart fab-cart--mayo" id="fab-cart-mayo" aria-label="Abrir carrito Mayorista">
+    <div class="fab-cart-icon-wrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <path d="M16 10a4 4 0 0 1-8 0"/>
+      </svg>
+      <span class="fab-cart-badge" id="fab-badge-mayo" style="display:none">0</span>
+    </div>
+    <div class="fab-cart-label">
+      <span class="fab-cart-title">Carrito MAY</span>
+      <span class="fab-cart-subtitle" id="fab-sub-mayo">Vacío</span>
+    </div>
+  </button>
+</div>
+
+<!-- ─── Scripts ───────────────────────────────────────────────── -->
+<script src="/js/catalog.js"></script>
+<script src="/js/products.js"></script>
+<script src="/js/cart.js"></script>
+<script src="/js/checkout.js"></script>
+
+</body>
+</html>

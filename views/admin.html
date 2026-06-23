@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PC3 Admin</title>
+  <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="/css/admin.css">
+  <link rel="icon" type="image/png" href="/PC3logo.png">
+</head>
+<body>
+
+<!-- ─── Login Page (shown when not authenticated) ────────────── -->
+<div id="login-page-wrapper">
+  <!-- This page is served for /admin/login — the server handles the split -->
+  <!-- When session is active, the full admin layout is shown instead -->
+</div>
+
+<!-- ─── Admin Layout ──────────────────────────────────────────── -->
+<div class="admin-body" id="admin-layout">
+
+  <!-- Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-logo">
+      <img src="/PC3logo.png" alt="PC3" onerror="this.style.display='none'">
+      <span class="sidebar-logo-text">Admin</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Catálogo</div>
+      <button class="nav-item active" data-page="products">
+        <span class="nav-item-icon">📦</span> Productos
+      </button>
+
+      <div class="nav-section-label">Sistema</div>
+      <button class="nav-item" data-page="settings">
+        <span class="nav-item-icon">⚙️</span> Configuración
+      </button>
+      <button class="nav-item" data-page="password">
+        <span class="nav-item-icon">🔑</span> Cambiar contraseña
+      </button>
+      <a href="/" target="_blank" class="nav-item" style="text-decoration:none">
+        <span class="nav-item-icon">🔗</span> Ver catálogo
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="sidebar-user">Sesión activa</div>
+      <form action="/admin/logout" method="POST" id="logout-form">
+        <button type="submit" class="btn btn-ghost btn-sm btn-block">Cerrar sesión</button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="admin-main">
+    <div class="admin-topbar">
+      <h2 id="page-title">Productos</h2>
+      <div style="font-size:13px;color:var(--color-text-muted)">PC3 Argentina</div>
+    </div>
+    <div class="admin-content" id="admin-content">
+      <div style="text-align:center;padding:60px;color:var(--color-text-muted)">Cargando...</div>
+    </div>
+  </main>
+
+</div>
+
+<!-- ─── Edit Panel ────────────────────────────────────────────── -->
+<div class="cart-overlay" id="panel-overlay"></div>
+<div class="edit-panel" id="edit-panel">
+  <div class="edit-panel-header">
+    <h3 id="edit-panel-title">Editar Producto</h3>
+    <button class="btn btn-ghost btn-sm" id="close-edit-panel">✕</button>
+  </div>
+  <div class="edit-panel-body" id="edit-panel-body">
+    <!-- Dynamic form content -->
+  </div>
+  <div class="edit-panel-footer">
+    <button class="btn btn-ghost" id="cancel-edit-btn">Cancelar</button>
+    <button class="btn btn-primary" id="save-product-btn">Guardar</button>
+  </div>
+</div>
+
+<!-- ─── Toast Container ───────────────────────────────────────── -->
+<div id="admin-toasts" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none"></div>
+
+<script src="/js/admin.js"></script>
+<script>
+  // Cancel button in footer
+  document.getElementById('cancel-edit-btn')?.addEventListener('click', () => {
+    document.getElementById('edit-panel')?.classList.remove('open');
+    document.getElementById('panel-overlay')?.classList.remove('visible');
+  });
+</script>
+
+</body>
+</html>

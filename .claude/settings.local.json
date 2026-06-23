@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -lah /c/Users/santi/OneDrive/Desktop/PC3/PC3logo*.png)"
+    ]
+  }
+}

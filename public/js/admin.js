@@ -1,0 +1,570 @@
+// ─── Admin SPA ────────────────────────────────────────────────
+const admin = {
+  products: [],
+  currentPage: 'products',
+  editProductId: null,
+};
+
+const api = async (path, opts = {}) => {
+  const res = await fetch('/api' + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+    body: opts.body && !(opts.body instanceof FormData)
+      ? (typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body))
+      : opts.body
+  });
+  if (res.status === 401) { window.location = '/admin/login'; throw new Error('No autorizado'); }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: `Error ${res.status}` }));
+    throw new Error(err.error || 'Error desconocido');
+  }
+  return res.status === 204 ? null : res.json();
+};
+
+const fmtPrice = (n) =>
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n);
+
+function toast(msg, type = 'success') {
+  const c = document.getElementById('admin-toasts');
+  if (!c) return;
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(40px)';
+    t.style.transition = '0.3s ease';
+    setTimeout(() => t.remove(), 300);
+  }, 3000);
+}
+
+// ─── Navigation ───────────────────────────────────────────────
+function navigate(page) {
+  admin.currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+
+  const titles = { products: 'Productos', settings: 'Configuración', password: 'Cambiar Contraseña' };
+  document.getElementById('page-title').textContent = titles[page] || page;
+
+  if (page === 'products') renderProductsPage();
+  else if (page === 'settings') renderSettingsPage();
+  else if (page === 'password') renderPasswordPage();
+}
+
+// ─── Products Page ────────────────────────────────────────────
+async function renderProductsPage() {
+  const content = document.getElementById('admin-content');
+  content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--color-text-muted)">Cargando...</div>`;
+
+  try {
+    admin.products = await api('/admin/products');
+  } catch (e) {
+    content.innerHTML = `<p style="color:var(--color-danger)">${e.message}</p>`;
+    return;
+  }
+
+  content.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px">
+      <h3 style="font-size:16px">Todos los productos (${admin.products.length})</h3>
+      <button class="btn btn-primary btn-sm" id="btn-new-product">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo producto
+      </button>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Imagen</th>
+            <th>Nombre / Slug</th>
+            <th>Precio Pro</th>
+            <th>Precio Mayo</th>
+            <th>Stock</th>
+            <th>Activo</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="products-tbody">
+          ${admin.products.map(p => buildProductRow(p)).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  document.getElementById('btn-new-product')?.addEventListener('click', () => openEditPanel(null));
+
+  attachTableEvents();
+}
+
+function buildProductRow(p) {
+  const firstImg = p.images && p.images[0];
+  const imgSrc = firstImg ? `/productos/${p.slug}/${firstImg.filename}` : '';
+  return `
+  <tr data-id="${p.id}">
+    <td>
+      ${imgSrc ? `<img class="table-product-img" src="${imgSrc}" alt="${p.name}">` : '<div style="width:48px;height:48px;background:var(--color-surface2);border-radius:6px"></div>'}
+    </td>
+    <td>
+      <div style="font-weight:700;font-size:14px">${p.name}</div>
+      <div style="font-size:11px;color:var(--color-text-faint)">${p.slug}</div>
+    </td>
+    <td>${fmtPrice(p.price_pro)}</td>
+    <td>${fmtPrice(p.price_mayo)}</td>
+    <td>
+      <input type="number" class="inline-stock-input" data-id="${p.id}" value="${p.stock}" min="0">
+    </td>
+    <td>
+      <label class="active-toggle" title="${p.active ? 'Activo' : 'Inactivo'}">
+        <input type="checkbox" class="active-toggle-input" data-id="${p.id}" ${p.active ? 'checked' : ''}>
+        <span class="toggle-track"></span>
+      </label>
+    </td>
+    <td>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm edit-btn" data-id="${p.id}" title="Editar">✏</button>
+        <button class="btn btn-danger btn-sm delete-btn" data-id="${p.id}" title="Desactivar">🗑</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+function attachTableEvents() {
+  // Edit
+  document.querySelectorAll('.edit-btn').forEach(btn =>
+    btn.addEventListener('click', () => openEditPanel(parseInt(btn.dataset.id))));
+
+  // Delete (hard — permanent)
+  document.querySelectorAll('.delete-btn').forEach(btn =>
+    btn.addEventListener('click', async () => {
+      const row = btn.closest('tr');
+      const name = row?.querySelector('td:nth-child(2) div')?.textContent || 'este producto';
+      if (!confirm(`⚠️ Eliminar permanentemente "${name}"?\n\nEsta acción es irreversible: se borrarán el producto, sus imágenes y todos sus datos.`)) return;
+      try {
+        await api(`/admin/products/${btn.dataset.id}?hard=1`, { method: 'DELETE' });
+        toast('Producto eliminado permanentemente');
+        renderProductsPage();
+      } catch (e) { toast(e.message, 'error'); }
+    }));
+
+  // Inline stock save
+  document.querySelectorAll('.inline-stock-input').forEach(input => {
+    input.addEventListener('change', async () => {
+      try {
+        await api(`/admin/products/${input.dataset.id}`, {
+          method: 'PUT',
+          body: { stock: parseInt(input.value) }
+        });
+        toast('Stock actualizado');
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  });
+
+  // Active toggle
+  document.querySelectorAll('.active-toggle-input').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      try {
+        await api(`/admin/products/${cb.dataset.id}`, {
+          method: 'PUT',
+          body: { active: cb.checked }
+        });
+        toast(cb.checked ? 'Producto activado' : 'Producto desactivado');
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  });
+}
+
+// ─── Edit Panel ───────────────────────────────────────────────
+async function openEditPanel(productId) {
+  admin.editProductId = productId;
+  const panel = document.getElementById('edit-panel');
+  const panelBody = document.getElementById('edit-panel-body');
+  const panelTitle = document.getElementById('edit-panel-title');
+
+  let product = null;
+  if (productId) {
+    product = admin.products.find(p => p.id === productId);
+    panelTitle.textContent = 'Editar Producto';
+  } else {
+    panelTitle.textContent = 'Nuevo Producto';
+  }
+
+  panelBody.innerHTML = buildEditForm(product);
+
+  panel.classList.add('open');
+  document.getElementById('panel-overlay')?.classList.add('visible');
+
+  setupEditFormEvents(product);
+}
+
+function buildEditForm(p) {
+  const tiers = p ? p.discount_tiers || [] : [];
+  const proTiers = tiers.filter(t => t.section === 'profesional');
+  const mayoTiers = tiers.filter(t => t.section === 'mayorista');
+
+  return `
+    <!-- Basic info -->
+    <div class="section-divider">Información básica</div>
+
+    <div class="form-group">
+      <label class="form-label">Nombre del producto *</label>
+      <input type="text" class="form-control" id="ef-name" value="${p?.name || ''}" placeholder="Ej: Cinta Cohesiva 5 CM">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Slug (URL) *</label>
+      <input type="text" class="form-control" id="ef-slug" value="${p?.slug || ''}" placeholder="cinta-cohesiva-5-cm" ${p ? 'disabled' : ''}>
+      ${p ? '<div class="text-xs text-muted mt-1">El slug no se puede cambiar una vez creado.</div>' : ''}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label class="form-label">Contenido del pack</label>
+        <input type="text" class="form-control" id="ef-contents" value="${p?.contents || ''}" placeholder="Caja x24 rollos · 5cm × 4.5m">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Descripción</label>
+      <textarea class="form-control" id="ef-description" rows="3" placeholder="Descripción del producto...">${p?.description || ''}</textarea>
+    </div>
+
+    <!-- Pricing -->
+    <div class="section-divider">Precios</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label class="form-label">Precio Profesional (Web)</label>
+        <input type="number" class="form-control" id="ef-price-pro" value="${p?.price_pro || ''}" placeholder="3500" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Precio Mayorista</label>
+        <input type="number" class="form-control" id="ef-price-mayo" value="${p?.price_mayo || ''}" placeholder="1450" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stock disponible</label>
+        <input type="number" class="form-control" id="ef-stock" value="${p?.stock ?? ''}" placeholder="100" min="0">
+      </div>
+    </div>
+
+    <div class="form-group" style="display:flex;align-items:center;gap:10px">
+      <label class="active-toggle">
+        <input type="checkbox" id="ef-active" ${p == null || p.active ? 'checked' : ''}>
+        <span class="toggle-track"></span>
+      </label>
+      <span class="text-sm">Producto activo (visible en el catálogo)</span>
+    </div>
+
+    <!-- Discount Tiers -->
+    ${p ? `
+    <div class="section-divider">Descuentos por volumen — Profesional</div>
+    <div id="pro-tiers-wrap">
+      ${buildTiersTable(proTiers, 'profesional', p.id)}
+    </div>
+    <button class="btn btn-ghost btn-sm" id="add-pro-tier">+ Agregar tramo</button>
+
+    <div class="section-divider" style="margin-top:16px">Descuentos por volumen — Mayorista</div>
+    <div id="mayo-tiers-wrap">
+      ${buildTiersTable(mayoTiers, 'mayorista', p.id)}
+    </div>
+    <button class="btn btn-ghost btn-sm" id="add-mayo-tier">+ Agregar tramo</button>
+    ` : '<div class="text-sm text-muted mt-2">Guardá el producto primero para configurar los descuentos por volumen.</div>'}
+
+    <!-- Images -->
+    ${p ? `
+    <div class="section-divider" style="margin-top:16px">Imágenes</div>
+
+    <div class="img-gallery" id="img-gallery">
+      ${(p.images || []).map(img => `
+        <div class="img-thumb" data-img-id="${img.id}">
+          <img src="/productos/${p.slug}/${img.filename}" alt="${img.filename}">
+          <button class="img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}" title="Eliminar imagen">✕</button>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="upload-zone" id="upload-zone">
+      <div style="font-size:24px;margin-bottom:6px">📁</div>
+      <div>Arrastrá imágenes aquí o <strong>hacé click para seleccionar</strong></div>
+      <div class="text-xs text-muted mt-1">PNG, JPG, WEBP — máx. 5MB cada una</div>
+    </div>
+    <input type="file" id="img-file-input" accept="image/*" multiple style="display:none">
+    ` : ''}
+
+    <div id="ef-error" class="form-error" style="display:none;margin-top:10px"></div>
+  `;
+}
+
+function buildTiersTable(tiers, section, productId) {
+  if (!tiers.length) return `<p class="text-sm text-muted mb-1">Sin tramos de descuento.</p>`;
+  return `
+    <table class="tier-table">
+      <thead><tr><th>Mínimo (un)</th><th>Descuento %</th><th></th></tr></thead>
+      <tbody>
+        ${tiers.map(t => `
+          <tr data-tier-id="${t.id}">
+            <td><input type="number" class="tier-input tier-min" value="${t.min_quantity}" min="1" data-id="${t.id}"></td>
+            <td><input type="number" class="tier-input tier-pct" value="${t.percentage}" min="0.1" max="99" step="0.1" data-id="${t.id}"></td>
+            <td>
+              <button class="btn btn-danger btn-sm del-tier-btn" data-id="${t.id}" style="padding:3px 7px">✕</button>
+            </td>
+          </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function setupEditFormEvents(product) {
+  // Save
+  document.getElementById('save-product-btn')?.addEventListener('click', () => saveProduct(product));
+
+  // Add tiers
+  if (product) {
+    document.getElementById('add-pro-tier')?.addEventListener('click', () => addTier(product.id, 'profesional'));
+    document.getElementById('add-mayo-tier')?.addEventListener('click', () => addTier(product.id, 'mayorista'));
+
+    // Delete tiers (delegated)
+    document.getElementById('edit-panel-body')?.addEventListener('click', async (e) => {
+      if (!e.target.classList.contains('del-tier-btn')) return;
+      const tierId = e.target.dataset.id;
+      try {
+        await api(`/admin/tiers/${tierId}`, { method: 'DELETE' });
+        e.target.closest('tr').remove();
+        toast('Tramo eliminado');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+
+    // Save tier on change
+    document.getElementById('edit-panel-body')?.addEventListener('change', async (e) => {
+      if (!e.target.classList.contains('tier-min') && !e.target.classList.contains('tier-pct')) return;
+      const row = e.target.closest('tr[data-tier-id]');
+      if (!row) return;
+      const tierId = row.dataset.tierId;
+      const min = row.querySelector('.tier-min').value;
+      const pct = row.querySelector('.tier-pct').value;
+      try {
+        await api(`/admin/tiers/${tierId}`, { method: 'PUT', body: { min_quantity: min, percentage: pct } });
+        toast('Tramo actualizado');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+
+    // Image delete
+    document.getElementById('img-gallery')?.addEventListener('click', async (e) => {
+      if (!e.target.classList.contains('img-thumb-del')) return;
+      if (!confirm('¿Eliminar esta imagen?')) return;
+      const imgId = e.target.dataset.imgId;
+      const productId = e.target.dataset.productId;
+      try {
+        await api(`/admin/products/${productId}/images/${imgId}`, { method: 'DELETE' });
+        e.target.closest('.img-thumb').remove();
+        toast('Imagen eliminada');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+
+    // Image upload
+    const zone = document.getElementById('upload-zone');
+    const fileInput = document.getElementById('img-file-input');
+    zone?.addEventListener('click', () => fileInput.click());
+    zone?.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone?.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      uploadImages(product.id, e.dataTransfer.files);
+    });
+    fileInput?.addEventListener('change', () => uploadImages(product.id, fileInput.files));
+  }
+}
+
+async function addTier(productId, section) {
+  const min = prompt(`Cantidad mínima para el descuento (${section}):`);
+  if (!min || isNaN(parseInt(min))) return;
+  const pct = prompt(`Porcentaje de descuento (ej: 20 para 20%):`);
+  if (!pct || isNaN(parseFloat(pct))) return;
+
+  try {
+    await api(`/admin/products/${productId}/tiers`, {
+      method: 'POST',
+      body: { section, min_quantity: parseInt(min), percentage: parseFloat(pct) }
+    });
+    toast('Tramo agregado');
+    // Refresh panel
+    const product = await api(`/admin/products`).then(ps => ps.find(p => p.id === productId));
+    if (product) {
+      admin.products = admin.products.map(p => p.id === productId ? product : p);
+      openEditPanel(productId);
+    }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function uploadImages(productId, files) {
+  if (!files || !files.length) return;
+  const formData = new FormData();
+  for (const f of files) formData.append('images', f);
+
+  try {
+    const zone = document.getElementById('upload-zone');
+    if (zone) zone.textContent = 'Subiendo...';
+    await fetch(`/api/admin/products/${productId}/images`, {
+      method: 'POST',
+      body: formData
+    }).then(r => { if (!r.ok) throw new Error('Error subiendo imágenes'); return r.json(); });
+
+    toast('Imágenes subidas');
+    const products = await api('/admin/products');
+    admin.products = products;
+    openEditPanel(productId);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function saveProduct(existingProduct) {
+  const name = document.getElementById('ef-name')?.value.trim();
+  const slug = document.getElementById('ef-slug')?.value.trim();
+  const contents = document.getElementById('ef-contents')?.value.trim();
+  const description = document.getElementById('ef-description')?.value.trim();
+  const price_pro = document.getElementById('ef-price-pro')?.value;
+  const price_mayo = document.getElementById('ef-price-mayo')?.value;
+  const stock = document.getElementById('ef-stock')?.value;
+  const active = document.getElementById('ef-active')?.checked;
+
+  const errorEl = document.getElementById('ef-error');
+  if (!name) { showEfError(errorEl, 'El nombre es requerido'); return; }
+  if (!existingProduct && !slug) { showEfError(errorEl, 'El slug es requerido'); return; }
+
+  const body = { name, contents, description, price_pro, price_mayo, stock, active };
+
+  try {
+    if (existingProduct) {
+      await api(`/admin/products/${existingProduct.id}`, { method: 'PUT', body });
+      toast('Producto actualizado');
+    } else {
+      await api('/admin/products', { method: 'POST', body: { ...body, slug } });
+      toast('Producto creado');
+    }
+    closeEditPanel();
+    renderProductsPage();
+  } catch (e) { showEfError(errorEl, e.message); }
+}
+
+function showEfError(el, msg) {
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function closeEditPanel() {
+  document.getElementById('edit-panel')?.classList.remove('open');
+  document.getElementById('panel-overlay')?.classList.remove('visible');
+  admin.editProductId = null;
+}
+
+// ─── Settings Page ────────────────────────────────────────────
+async function renderSettingsPage() {
+  const content = document.getElementById('admin-content');
+  let settings = {};
+  try { settings = await api('/admin/settings'); } catch (e) { /* */ }
+
+  content.innerHTML = `
+    <div class="settings-card">
+      <h3>Configuración general</h3>
+
+      <div class="form-group">
+        <label class="form-label">Compra mínima — Lista Profesional ($)</label>
+        <input type="number" class="form-control" id="s-min-pro" value="${settings.min_purchase_pro || 550000}" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Compra mínima — Lista Mayorista ($)</label>
+        <input type="number" class="form-control" id="s-min-mayo" value="${settings.min_purchase_mayo || 950000}" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Número de WhatsApp (código país + número sin +)</label>
+        <input type="text" class="form-control" id="s-wa" value="${settings.whatsapp_number || ''}" placeholder="5493492310744">
+      </div>
+
+      <button class="btn btn-primary" id="save-settings-btn">Guardar configuración</button>
+    </div>
+  `;
+
+  document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
+    const updates = [
+      { key: 'min_purchase_pro', value: document.getElementById('s-min-pro').value },
+      { key: 'min_purchase_mayo', value: document.getElementById('s-min-mayo').value },
+      { key: 'whatsapp_number', value: document.getElementById('s-wa').value.trim() },
+    ];
+    try {
+      await Promise.all(updates.map(u => api('/admin/settings', { method: 'PUT', body: u })));
+      toast('Configuración guardada');
+    } catch (e) { toast(e.message, 'error'); }
+  });
+}
+
+// ─── Password Page ────────────────────────────────────────────
+function renderPasswordPage() {
+  const content = document.getElementById('admin-content');
+  content.innerHTML = `
+    <div class="settings-card">
+      <h3>Cambiar contraseña</h3>
+      <div class="form-group">
+        <label class="form-label">Contraseña actual</label>
+        <input type="password" class="form-control" id="pw-current" autocomplete="current-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nueva contraseña</label>
+        <input type="password" class="form-control" id="pw-new" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirmar nueva contraseña</label>
+        <input type="password" class="form-control" id="pw-confirm" autocomplete="new-password">
+      </div>
+      <div id="pw-error" class="form-error" style="display:none;margin-bottom:12px"></div>
+      <button class="btn btn-primary" id="save-pw-btn">Cambiar contraseña</button>
+    </div>
+  `;
+
+  document.getElementById('save-pw-btn')?.addEventListener('click', async () => {
+    const cur = document.getElementById('pw-current').value;
+    const nw = document.getElementById('pw-new').value;
+    const conf = document.getElementById('pw-confirm').value;
+    const errEl = document.getElementById('pw-error');
+
+    if (!cur || !nw) { errEl.textContent = 'Completá todos los campos'; errEl.style.display = 'block'; return; }
+    if (nw !== conf) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.style.display = 'block'; return; }
+    if (nw.length < 6) { errEl.textContent = 'La contraseña debe tener al menos 6 caracteres'; errEl.style.display = 'block'; return; }
+
+    try {
+      await api('/admin/change-password', {
+        method: 'POST',
+        body: { current_password: cur, new_password: nw }
+      });
+      errEl.style.display = 'none';
+      toast('Contraseña actualizada correctamente');
+      document.getElementById('pw-current').value = '';
+      document.getElementById('pw-new').value = '';
+      document.getElementById('pw-confirm').value = '';
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.style.display = 'block';
+    }
+  });
+}
+
+// ─── Init ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Nav items
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => navigate(item.dataset.page));
+  });
+
+  // Close panel
+  document.getElementById('close-edit-panel')?.addEventListener('click', closeEditPanel);
+  document.getElementById('panel-overlay')?.addEventListener('click', closeEditPanel);
+
+  // Logout
+  document.getElementById('logout-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (confirm('¿Cerrar sesión?')) e.target.submit();
+  });
+
+  // Start on products page
+  navigate('products');
+});
