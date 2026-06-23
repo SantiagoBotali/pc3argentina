@@ -243,8 +243,16 @@ function buildEditForm(p) {
         <input type="number" class="form-control" id="ef-price-mayo" value="${p?.price_mayo || ''}" placeholder="1450" min="0">
       </div>
       <div class="form-group">
-        <label class="form-label">Stock disponible</label>
-        <input type="number" class="form-control" id="ef-stock" value="${p?.stock ?? ''}" placeholder="100" min="0">
+        <label class="form-label">Stock disponible
+          ${p && p.images && p.images.length > 0
+            ? '<span style="font-size:11px;color:var(--color-text-muted)"> (gestionado por color)</span>'
+            : ''}
+        </label>
+        <input type="number" class="form-control" id="ef-stock" value="${p?.stock ?? ''}" placeholder="100" min="0"
+          ${p && p.images && p.images.length > 0 ? 'disabled style="opacity:0.5"' : ''}>
+        ${p && p.images && p.images.length > 0
+          ? '<div style="font-size:11px;color:var(--color-text-muted);margin-top:4px">El stock se gestiona por color en la sección de imágenes.</div>'
+          : ''}
       </div>
     </div>
 
@@ -273,13 +281,37 @@ function buildEditForm(p) {
 
     <!-- Images -->
     ${p ? `
-    <div class="section-divider" style="margin-top:16px">Imágenes</div>
+    <div class="section-divider" style="margin-top:16px">Imágenes y colores</div>
 
-    <div class="img-gallery" id="img-gallery">
-      ${(p.images || []).map(img => `
-        <div class="img-thumb" data-img-id="${img.id}">
-          <img src="/productos/${p.slug}/${img.filename}" alt="${img.filename}">
-          <button class="img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}" title="Eliminar imagen">✕</button>
+    <div id="img-color-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+      ${(p.images || []).map((img) => `
+        <div class="img-color-row" data-img-id="${img.id}" style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--color-surface2);border-radius:8px">
+          <img src="/productos/${p.slug}/${img.filename}" alt="${img.filename}"
+            style="width:56px;height:56px;object-fit:cover;border-radius:6px;flex-shrink:0">
+          <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">
+            <input type="text"
+              class="form-control img-color-name"
+              data-img-id="${img.id}"
+              data-product-id="${p.id}"
+              value="${(img.color_name || '').replace(/"/g, '&quot;')}"
+              placeholder="Nombre del color (ej: Rojo)"
+              style="font-size:13px;padding:5px 8px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <label style="font-size:11px;color:var(--color-text-muted);white-space:nowrap">Stock:</label>
+              <input type="number"
+                class="form-control img-color-stock"
+                data-img-id="${img.id}"
+                data-product-id="${p.id}"
+                value="${img.stock || 0}"
+                min="0"
+                style="width:80px;font-size:13px;padding:5px 8px">
+            </div>
+          </div>
+          <button class="btn btn-danger btn-sm img-thumb-del"
+            data-img-id="${img.id}"
+            data-product-id="${p.id}"
+            title="Eliminar imagen"
+            style="flex-shrink:0">✕</button>
         </div>
       `).join('')}
     </div>
@@ -349,15 +381,44 @@ function setupEditFormEvents(product) {
     });
 
     // Image delete
-    document.getElementById('img-gallery')?.addEventListener('click', async (e) => {
+    document.getElementById('img-color-list')?.addEventListener('click', async (e) => {
       if (!e.target.classList.contains('img-thumb-del')) return;
       if (!confirm('¿Eliminar esta imagen?')) return;
       const imgId = e.target.dataset.imgId;
       const productId = e.target.dataset.productId;
       try {
         await api(`/admin/products/${productId}/images/${imgId}`, { method: 'DELETE' });
-        e.target.closest('.img-thumb').remove();
+        e.target.closest('.img-color-row').remove();
         toast('Imagen eliminada');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+
+    // Color name and stock autosave
+    document.getElementById('img-color-list')?.addEventListener('change', async (e) => {
+      const isColorName = e.target.classList.contains('img-color-name');
+      const isStock = e.target.classList.contains('img-color-stock');
+      if (!isColorName && !isStock) return;
+
+      const imgId = e.target.dataset.imgId;
+      const productId = e.target.dataset.productId;
+      const row = e.target.closest('.img-color-row');
+      if (!row) return;
+
+      const colorName = row.querySelector('.img-color-name').value.trim();
+      const stock = parseInt(row.querySelector('.img-color-stock').value) || 0;
+
+      try {
+        await api(`/admin/products/${productId}/images/${imgId}`, {
+          method: 'PUT',
+          body: { color_name: colorName, stock }
+        });
+        toast('Color/stock actualizado');
+        // Update in-memory data
+        const prod = admin.products.find(p => p.id === parseInt(productId));
+        if (prod) {
+          const img = (prod.images || []).find(i => i.id === parseInt(imgId));
+          if (img) { img.color_name = colorName; img.stock = stock; }
+        }
       } catch (err) { toast(err.message, 'error'); }
     });
 
