@@ -34,17 +34,23 @@ const fmtPrice = (n) =>
 function toast(msg, type = 'success') {
   const c = document.getElementById('admin-toasts');
   if (!c) return;
-  // Dismiss any existing toasts immediately
-  c.querySelectorAll('.toast').forEach(existing => existing.remove());
+  // Fade out and remove any existing toast before showing the new one
+  c.querySelectorAll('.toast').forEach(existing => {
+    existing.style.transition = 'opacity 0.15s ease';
+    existing.style.opacity = '0';
+    setTimeout(() => existing.remove(), 150);
+  });
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   t.textContent = msg;
+  t.style.opacity = '0';
+  t.style.transition = 'opacity 0.2s ease';
   c.appendChild(t);
+  // Slight delay so the fade-in feels intentional
+  requestAnimationFrame(() => requestAnimationFrame(() => { t.style.opacity = '1'; }));
   setTimeout(() => {
     t.style.opacity = '0';
-    t.style.transform = 'translateX(40px)';
-    t.style.transition = '0.3s ease';
-    setTimeout(() => t.remove(), 300);
+    setTimeout(() => t.remove(), 200);
   }, 3000);
 }
 
@@ -403,7 +409,6 @@ function setupEditFormEvents(product) {
           method: 'PUT',
           body: { color_name: colorName, stock }
         });
-        toast('Color/stock actualizado');
         // Update in-memory data
         const prod = admin.products.find(p => p.id === parseInt(productId));
         if (prod) {

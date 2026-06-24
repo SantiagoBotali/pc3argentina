@@ -39,6 +39,7 @@ window.renderProductGrid = window.renderProductList;
 // ─── Color name from filename ─────────────────────────────────
 function variantLabel(filename, idx) {
   if (!filename) return `Var. ${idx + 1}`;
+  if (filename.startsWith('http')) return `Var. ${idx + 1}`;
   const n = filename.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim();
   if (!n || /^var\s*\d+$/i.test(n)) return `Var. ${idx + 1}`;
   return n.charAt(0).toUpperCase() + n.slice(1);
@@ -75,7 +76,7 @@ function buildProductRow(product, section, rowNum) {
   const stockHtml = `<div class="js-stock-badge-wrap">${stockBadgeHtml(firstEffectiveStock)}</div>`;
 
   // Color swatches — always shown if product has images
-  const firstLabel = variantLabel(images[0]?.filename, 0);
+  const firstLabel = images[0]?.color_name || variantLabel(images[0]?.filename, 0);
   const swatchesHtml = images.length > 0
     ? `<div class="row-swatches">
         <span class="row-swatches-label">COLOR</span>
@@ -150,7 +151,6 @@ function buildProductRow(product, section, rowNum) {
         </div>` : ''}
       </div>
     </div>
-    <div class="row-savings js-dynamic-savings"></div>
     <div class="row-qty-stepper">
       <button class="qty-step-btn js-qty-minus" aria-label="Menos">−</button>
       <input type="number" class="qty-input js-qty" min="0" max="9999" value="${currentQty}" data-product-id="${product.id}">
@@ -170,7 +170,6 @@ function setupRowInteractions(row) {
   if (!product) return;
 
   const qtyInput      = row.querySelector('.js-qty');
-  const savingsEl     = row.querySelector('.js-dynamic-savings');
   const stockWarn     = row.querySelector('.js-stock-warning');
   const stockBadgeWrap = row.querySelector('.js-stock-badge-wrap');
   const minusBtn      = row.querySelector('.js-qty-minus');
@@ -233,18 +232,6 @@ function setupRowInteractions(row) {
     const { price } = getEffectivePrice(product, section, qty);
     const priceEl = row.querySelector('.js-price-value');
     if (priceEl) priceEl.textContent = fmt(price);
-
-    if (savingsEl) {
-      const publicPrice = product.price_public || 0;
-      if (publicPrice > price && rawQty > 0) {
-        const totalSavings = (publicPrice - price) * rawQty;
-        savingsEl.textContent = `Ahorrás ${fmt(totalSavings)} vs precio público`;
-        savingsEl.style.display = 'block';
-      } else {
-        savingsEl.textContent = '';
-        savingsEl.style.display = 'none';
-      }
-    }
 
     if (stockWarn) {
       if (rawQty > effectiveStock && effectiveStock > 0) {
