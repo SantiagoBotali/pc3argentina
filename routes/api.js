@@ -2,9 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
-const path = require('path');
 const { v2: cloudinary } = require('cloudinary');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const { requireAdmin } = require('../middleware/auth');
 
 const getDb = () => global.__db;
@@ -16,27 +14,26 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: async (req) => {
-    const db = getDb();
-    const product = await db.prepare('SELECT slug FROM products WHERE id = ?').get(req.params.id);
-    return {
-      folder: `pc3/${product ? product.slug : 'unknown'}`,
-      allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-      transformation: [{ quality: 'auto', fetch_format: 'auto' }],
-    };
-  },
-});
-
+// Multer stores files in memory; we upload the buffer directly to Cloudinary
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
     if (/^image\/(png|jpe?g|webp|gif)$/i.test(file.mimetype)) cb(null, true);
     else cb(new Error('Solo se permiten imágenes'));
   },
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+/** Upload a file buffer to Cloudinary and return the secure URL */
+function uploadToCloudinary(buffer, folder) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, transformation: [{ quality: 'auto', fetch_format: 'auto' }] },
+      (err, result) => err ? reject(err) : resolve(result.secure_url)
+    );
+    stream.end(buffer);
+  });
+}
 
 /** Extract Cloudinary public_id from a secure_url */
 function cloudinaryPublicId(url) {
@@ -231,39 +228,37 @@ router.delete('/admin/products/:id', requireAdmin, async (req, res) => {
 });
 
 router.post('/admin/products/:id/images', requireAdmin, (req, res) => {
-  const db = getDb();
+  upload.array('images', 20)(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No se recibieron imágenes' });
+    }
 
-  db.prepare(`SELECT * FROM products WHERE id = ?`).get(req.params.id).then(product => {
-    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+    try {
+      const db = getDb();
+      const product = await db.prepare(`SELECT * FROM products WHERE id = ?`).get(req.params.id);
+      if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
 
-    upload.array('images', 20)(req, res, async (err) => {
-      if (err) return res.status(400).json({ error: err.message });
-      if (!req.files || req.files.length === 0) {
-        return res.status(400).json({ error: 'No se recibieron imágenes' });
+      const maxRow = await db.prepare(
+        `SELECT MAX(sort_order) as m FROM product_images WHERE product_id = ?`
+      ).get(product.id);
+      let nextOrder = (maxRow?.m == null ? -1 : maxRow.m) + 1;
+
+      for (const file of req.files) {
+        const url = await uploadToCloudinary(file.buffer, `pc3/${product.slug}`);
+        await db.prepare(
+          `INSERT INTO product_images (product_id, filename, sort_order) VALUES (?, ?, ?)`
+        ).run(product.id, url, nextOrder++);
       }
 
-      try {
-        const maxRow = await db.prepare(
-          `SELECT MAX(sort_order) as m FROM product_images WHERE product_id = ?`
-        ).get(product.id);
-        let nextOrder = (maxRow?.m == null ? -1 : maxRow.m) + 1;
-
-        for (const file of req.files) {
-          // file.path = Cloudinary secure_url
-          await db.prepare(
-            `INSERT INTO product_images (product_id, filename, sort_order) VALUES (?, ?, ?)`
-          ).run(product.id, file.path, nextOrder++);
-        }
-
-        const images = await db.prepare(
-          `SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order`
-        ).all(product.id);
-        res.json(images);
-      } catch (e) {
-        res.status(500).json({ error: e.message });
-      }
-    });
-  }).catch(e => res.status(500).json({ error: e.message }));
+      const images = await db.prepare(
+        `SELECT * FROM product_images WHERE product_id = ? ORDER BY sort_order`
+      ).all(product.id);
+      res.json(images);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
 });
 
 router.delete('/admin/products/:id/images/:imgId', requireAdmin, async (req, res) => {
