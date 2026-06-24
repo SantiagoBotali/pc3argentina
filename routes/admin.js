@@ -25,7 +25,14 @@ router.post('/login', async (req, res) => {
 
     req.session.adminId = admin.id;
     req.session.adminUsername = admin.username;
-    res.redirect('/admin');
+
+    // Explicitly save session before redirecting — critical in serverless
+    // environments where the response may be sent before the async store write completes
+    req.session.save((err) => {
+      if (err) return res.redirect('/admin/login?error=1');
+      // 303 See Other: forces browser to GET /admin instead of resubmitting POST
+      res.redirect(303, '/admin');
+    });
   } catch (e) {
     res.redirect('/admin/login?error=1');
   }
