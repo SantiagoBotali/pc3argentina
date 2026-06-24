@@ -1,3 +1,10 @@
+// ─── Image URL helper (supports Cloudinary URLs and local paths) ─
+function productImgSrc(slug, filename) {
+  if (!filename) return '';
+  if (filename.startsWith('http')) return filename;
+  return `/productos/${slug}/${filename}`;
+}
+
 // ─── Global State ────────────────────────────────────────────
 window.state = {
   activeSection: 'profesional',
@@ -269,7 +276,7 @@ window.openPreview = function(productId) {
   const slidesHtml = images.length
     ? images.map((img, i) => `
         <div class="pv-slide ${i === 0 ? 'active' : ''}" data-idx="${i}">
-          <img src="/productos/${product.slug}/${img.filename}" alt="${product.name}">
+          <img src="${productImgSrc(product.slug, img.filename)}" alt="${product.name}">
         </div>`).join('')
     : `<div class="pv-slide active"><div class="pv-no-image">Sin imagen</div></div>`;
 
