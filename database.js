@@ -24,10 +24,12 @@ function flatParams(args) {
 /** Build a prepared-statement-like async object */
 function prepare(sql) {
   const pgQuery = toPgSql(sql);
-  // Append RETURNING id to INSERT statements so lastInsertRowid works
+  // Only append RETURNING id for tables that have a SERIAL id column.
+  // Tables like `settings` (TEXT primary key) and `user_sessions` do not have one.
   const isInsert = /^\s*INSERT/i.test(sql);
   const hasReturning = /RETURNING/i.test(sql);
-  const insertQuery = isInsert && !hasReturning ? pgQuery + ' RETURNING id' : pgQuery;
+  const hasSerialId = /INSERT\s+INTO\s+(products|product_images|discount_tiers|admin_users)\b/i.test(sql);
+  const insertQuery = isInsert && !hasReturning && hasSerialId ? pgQuery + ' RETURNING id' : pgQuery;
 
   return {
     async run(...args) {
