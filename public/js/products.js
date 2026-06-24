@@ -59,7 +59,6 @@ function buildProductRow(product, section, rowNum) {
   // Public price reference (shown whenever a public price is set)
   const publicPrice   = product.price_public || 0;
   const showPublicRef = publicPrice > 0;
-  const sectionLabel  = section === 'mayorista' ? 'Precio Mayorista' : 'Precio Profesional';
 
   // Effective stock: use first variant's stock if set, else product-level stock
   const firstImg0 = images[0];
@@ -140,10 +139,6 @@ function buildProductRow(product, section, rowNum) {
         <span class="row-price-unit">/un</span>
       </div>
       <div class="row-price-detail">
-        <div class="row-price-detail-row row-price-detail-section">
-          <span class="row-price-detail-label">${sectionLabel}</span>
-          <span class="row-price-detail-val">${fmt(basePrice)}</span>
-        </div>
         ${showPublicRef ? `
         <div class="row-price-detail-row row-price-detail-public">
           <span class="row-price-detail-label">Precio Público</span>
