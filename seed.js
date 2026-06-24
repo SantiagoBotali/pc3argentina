@@ -33,22 +33,27 @@ async function seed() {
   }
   console.log('✓ Configuración inicial cargada');
 
-  // Default products (no images — upload via admin panel)
+  // Default products — names and prices follow precios.txt exactly.
+  // Existing records are updated so a re-run always restores correct data.
   const SEED_PRODUCTS = [
-    { slug: 'cinta-cohesiva-5-cm',   name: 'Cinta Cohesiva 5 CM',   price_pro: 3500,  price_mayo: 1450, stock: 100, sort_order: 1 },
-    { slug: 'cinta-cohesiva-7.5-cm', name: 'Cinta Cohesiva 7.5 CM', price_pro: 4000,  price_mayo: 2100, stock: 100, sort_order: 2 },
-    { slug: 'cinta-cohesiva-10-cm',  name: 'Cinta Cohesiva 10 CM',  price_pro: 4500,  price_mayo: 2600, stock: 100, sort_order: 3 },
+    { slug: 'cinta-cohesiva-5-cm',   name: 'Cinta cohesiva 5 CM',   price_pro: 3500,  price_mayo: 1450, stock: 100, sort_order: 1 },
+    { slug: 'cinta-cohesiva-7.5-cm', name: 'Cinta cohesiva 7.5 CM', price_pro: 4000,  price_mayo: 2100, stock: 100, sort_order: 2 },
+    { slug: 'cinta-cohesiva-10-cm',  name: 'Cinta cohesiva 10 CM',  price_pro: 4500,  price_mayo: 2600, stock: 100, sort_order: 3 },
     { slug: 'kinesiology-tape-5-cm', name: 'Kinesiology Tape 5 CM', price_pro: 16000, price_mayo: 6600, stock: 100, sort_order: 4 },
-    { slug: 'sport-tape-3.8-cm',     name: 'Sport Tape 3.8 CM',     price_pro: 12500, price_mayo: 6000, stock: 100, sort_order: 5 },
-    { slug: 'sport-tape-5-cm',       name: 'Sport Tape 5 CM',       price_pro: 15000, price_mayo: 7000, stock: 100, sort_order: 6 },
+    { slug: 'sport-tape-3.8-cm',     name: 'Sport tape 3.8 CM',     price_pro: 12500, price_mayo: 6000, stock: 100, sort_order: 5 },
+    { slug: 'sport-tape-5-cm',       name: 'Sport tape 5 CM',       price_pro: 15000, price_mayo: 7000, stock: 100, sort_order: 6 },
     { slug: 'tenso-pc3-7.5-cm',      name: 'Tenso PC3 7.5 CM',      price_pro: 8000,  price_mayo: 6000, stock: 100, sort_order: 7 },
-    { slug: 'pre-vendaje-7-cm',      name: 'Pre Vendaje 7 CM',      price_pro: 10000, price_mayo: 5000, stock: 100, sort_order: 8 },
+    { slug: 'pre-vendaje-7-cm',      name: 'Pre vendaje 7 CM',      price_pro: 10000, price_mayo: 5000, stock: 100, sort_order: 8 },
   ];
 
   for (const p of SEED_PRODUCTS) {
     const existing = await db.prepare(`SELECT id FROM products WHERE slug = ?`).get(p.slug);
     if (existing) {
-      console.log(`  (producto ${p.slug} ya existe, saltando)`);
+      // Always update name and prices so re-running seed restores correct data
+      await db.prepare(`
+        UPDATE products SET name = ?, price_pro = ?, price_mayo = ?, sort_order = ? WHERE id = ?
+      `).run(p.name, p.price_pro, p.price_mayo, p.sort_order, existing.id);
+      console.log(`✓ Producto actualizado: ${p.name}`);
       continue;
     }
 

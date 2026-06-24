@@ -368,13 +368,16 @@ function buildTiersTable(tiers, section, productId) {
 }
 
 function setupEditFormEvents(product) {
-  // Save
-  document.getElementById('save-product-btn')?.addEventListener('click', () => saveProduct(product));
+  // Save — use onclick (not addEventListener) so re-opening the panel replaces
+  // the handler instead of stacking a new one on top of the previous one.
+  const saveBtn = document.getElementById('save-product-btn');
+  if (saveBtn) saveBtn.onclick = () => saveProduct(product);
 
   // Stock modal trigger from edit panel
-  document.getElementById('btn-manage-stock')?.addEventListener('click', () => {
+  const manageStockBtn = document.getElementById('btn-manage-stock');
+  if (manageStockBtn) manageStockBtn.onclick = () => {
     if (product) openStockModal(product.id);
-  });
+  };
 
   if (product) {
     // Image delete
