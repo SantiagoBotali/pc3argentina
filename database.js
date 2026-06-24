@@ -58,6 +58,12 @@ async function getClient() {
   return pool.connect();
 }
 
+/** Run a raw parameterised query and return rows. Useful for array params (ANY($1)). */
+async function query(sql, params = []) {
+  const result = await pool.query(sql, params);
+  return result.rows;
+}
+
 /** Execute a raw SQL string (DDL / multi-statement). No params. */
 async function exec(sql) {
   await pool.query(sql);
@@ -133,7 +139,7 @@ async function init() {
   await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_name TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0`);
 
-  return { prepare, getClient, exec, save };
+  return { prepare, getClient, query, exec, save };
 }
 
 module.exports = { init };

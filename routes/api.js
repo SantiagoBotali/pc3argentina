@@ -44,6 +44,11 @@ function cloudinaryPublicId(url) {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
+
+/**
+ * Fetch a single product with images and tiers (3 queries).
+ * Used for single-product responses (create, update).
+ */
 async function getProductFull(id) {
   const db = getDb();
   const product = await db.prepare(`SELECT * FROM products WHERE id = ?`).get(id);
@@ -57,15 +62,59 @@ async function getProductFull(id) {
   return product;
 }
 
+/**
+ * Fetch a list of products with images and tiers in exactly 3 queries total,
+ * regardless of how many products there are (no N+1).
+ */
+async function getProductList(products) {
+  if (!products.length) return [];
+  const db = getDb();
+  const ids = products.map(p => p.id);
+
+  const [images, tiers] = await Promise.all([
+    db.query(`SELECT * FROM product_images WHERE product_id = ANY($1) ORDER BY sort_order`, [ids]),
+    db.query(`SELECT * FROM discount_tiers WHERE product_id = ANY($1) ORDER BY section, min_quantity`, [ids]),
+  ]);
+
+  const imagesByProduct = {};
+  const tiersByProduct = {};
+  for (const img of images) {
+    (imagesByProduct[img.product_id] = imagesByProduct[img.product_id] || []).push(img);
+  }
+  for (const t of tiers) {
+    (tiersByProduct[t.product_id] = tiersByProduct[t.product_id] || []).push(t);
+  }
+
+  return products.map(p => ({
+    ...p,
+    images: imagesByProduct[p.id] || [],
+    discount_tiers: tiersByProduct[p.id] || [],
+  }));
+}
+
+// ─── Simple in-memory cache for the public catalog ───────────────
+// Survives across warm requests on the same Vercel instance.
+// Invalidated whenever a product is created, updated, or deleted.
+const catalogCache = { data: null, expiresAt: 0 };
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
+function invalidateCache() { catalogCache.data = null; catalogCache.expiresAt = 0; }
+
 // ─── PUBLIC ROUTES ──────────────────────────────────────────────
 
 router.get('/products', async (req, res) => {
   try {
+    const now = Date.now();
+    if (catalogCache.data && now < catalogCache.expiresAt) {
+      return res.json(catalogCache.data);
+    }
     const db = getDb();
     const products = await db.prepare(
       `SELECT * FROM products WHERE active = 1 ORDER BY sort_order, id`
     ).all();
-    const result = await Promise.all(products.map(p => getProductFull(p.id)));
+    const result = await getProductList(products);
+    catalogCache.data = result;
+    catalogCache.expiresAt = now + CACHE_TTL_MS;
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -128,7 +177,7 @@ router.get('/admin/products', requireAdmin, async (req, res) => {
     const products = await db.prepare(
       `SELECT * FROM products ORDER BY sort_order, id`
     ).all();
-    const result = await Promise.all(products.map(p => getProductFull(p.id)));
+    const result = await getProductList(products);
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -156,6 +205,7 @@ router.post('/admin/products', requireAdmin, async (req, res) => {
       active == null ? 1 : (active ? 1 : 0),
       parseInt(sort_order) || 0,
     );
+    invalidateCache();
     res.json(await getProductFull(result.lastInsertRowid));
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -190,6 +240,7 @@ router.put('/admin/products/:id', requireAdmin, async (req, res) => {
       safeInt(sort_order,   existing.sort_order),
       req.params.id,
     );
+    invalidateCache();
     res.json(await getProductFull(req.params.id));
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -221,6 +272,7 @@ router.delete('/admin/products/:id', requireAdmin, async (req, res) => {
         `UPDATE products SET active = 0, updated_at = NOW() WHERE id = ?`
       ).run(req.params.id);
     }
+    invalidateCache();
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
