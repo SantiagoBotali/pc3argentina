@@ -1,17 +1,16 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const path = require('path');
 
-async function main() {
+async function createApp() {
   const { init } = require('./database');
   const db = await init();
   global.__db = db;
 
   const app = express();
-  const PORT = process.env.PORT || 3000;
 
-  // Trust Railway/Vercel proxy for secure cookies
   app.set('trust proxy', 1);
 
   // Static files
@@ -24,14 +23,18 @@ async function main() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
-  // Sessions
-  const isProduction = process.env.NODE_ENV === 'production';
+  // Sessions — stored in PostgreSQL so they persist across deploys and serverless instances
   app.use(session({
+    store: new pgSession({
+      conString: process.env.DATABASE_URL,
+      tableName: 'user_sessions',
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || 'pc3_secret_dev',
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: isProduction,
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24h
     },
@@ -42,13 +45,28 @@ async function main() {
   app.use('/admin', require('./routes/admin'));
   app.use('/', require('./routes/catalog'));
 
-  app.listen(PORT, () => {
-    console.log(`\n🚀 PC3 Catálogo corriendo en http://localhost:${PORT}`);
-    console.log(`   Admin: http://localhost:${PORT}/admin`);
-  });
+  return app;
 }
 
-main().catch(err => {
-  console.error('Error iniciando servidor:', err);
-  process.exit(1);
-});
+// Local dev: start the server normally
+// Vercel: export the app as a serverless handler
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  createApp().then(app => {
+    app.listen(PORT, () => {
+      console.log(`\n🚀 PC3 Catálogo corriendo en http://localhost:${PORT}`);
+      console.log(`   Admin: http://localhost:${PORT}/admin`);
+    });
+  }).catch(err => {
+    console.error('Error iniciando servidor:', err);
+    process.exit(1);
+  });
+} else {
+  // Vercel serverless export
+  let appPromise = null;
+  module.exports = async (req, res) => {
+    if (!appPromise) appPromise = createApp();
+    const app = await appPromise;
+    app(req, res);
+  };
+}
