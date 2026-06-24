@@ -1,3 +1,10 @@
+// ─── Image URL helper (supports Cloudinary URLs and local paths) ─
+function productImgSrc(slug, filename) {
+  if (!filename) return '';
+  if (filename.startsWith('http')) return filename;
+  return `/productos/${slug}/${filename}`;
+}
+
 // ─── Cart Operations ──────────────────────────────────────────
 window.addToCart = function(productId, quantity, section, variantIdx, silent) {
   const s = section || state.activeSection;
@@ -230,7 +237,7 @@ function buildCartItemHTML(item, section) {
   const subtotal = price * item.quantity;
   const variantIdx = item.variantIdx || 0;
   const firstImg = product.images && product.images[variantIdx];
-  const imgSrc = firstImg ? `/productos/${product.slug}/${firstImg.filename}` : '';
+  const imgSrc = firstImg ? productImgSrc(product.slug, firstImg.filename) : '';
   const colorLabel = item.colorName ? ` — ${item.colorName}` : '';
 
   return `
