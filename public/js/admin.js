@@ -70,7 +70,7 @@ function navigate(page) {
 // ─── Products Page ────────────────────────────────────────────
 async function renderProductsPage() {
   const content = document.getElementById('admin-content');
-  content.innerHTML = `<div style="text-align:center;padding:60px;color:var(--color-text-muted)">Cargando...</div>`;
+  content.innerHTML = `<div class="loader-wrap"><div class="loader-dots"><span></span><span></span><span></span></div><span>Cargando productos...</span></div>`;
 
   try {
     admin.products = await api('/admin/products');
@@ -494,6 +494,13 @@ async function saveProduct(existingProduct) {
 
   const body = { name, contents, description, price_pro, price_mayo, price_public, stock, active };
 
+  const btn = document.getElementById('save-product-btn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<div class="loader-dots" style="--color-accent:#000"><span></span><span></span><span></span></div>`;
+  }
+
   try {
     if (existingProduct) {
       await api(`/admin/products/${existingProduct.id}`, { method: 'PUT', body });
@@ -504,7 +511,10 @@ async function saveProduct(existingProduct) {
     }
     closeEditPanel();
     renderProductsPage();
-  } catch (e) { showEfError(errorEl, e.message); }
+  } catch (e) {
+    showEfError(errorEl, e.message);
+    if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
+  }
 }
 
 function showEfError(el, msg) {
@@ -600,6 +610,7 @@ function closeStockModal() {
 // ─── Settings Page ────────────────────────────────────────────
 async function renderSettingsPage() {
   const content = document.getElementById('admin-content');
+  content.innerHTML = `<div class="loader-wrap"><div class="loader-dots"><span></span><span></span><span></span></div><span>Cargando configuración...</span></div>`;
   let settings = {};
   try { settings = await api('/admin/settings'); } catch (e) { /* */ }
 
@@ -624,7 +635,11 @@ async function renderSettingsPage() {
     </div>
   `;
 
-  document.getElementById('save-settings-btn')?.addEventListener('click', async () => {
+  document.getElementById('save-settings-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<div class="loader-dots" style="--color-accent:#000"><span></span><span></span><span></span></div>`;
     const updates = [
       { key: 'min_purchase_pro', value: document.getElementById('s-min-pro').value },
       { key: 'min_purchase_mayo', value: document.getElementById('s-min-mayo').value },
@@ -634,6 +649,8 @@ async function renderSettingsPage() {
       await Promise.all(updates.map(u => api('/admin/settings', { method: 'PUT', body: u })));
       toast('Configuración guardada');
     } catch (e) { toast(e.message, 'error'); }
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   });
 }
 
@@ -660,7 +677,7 @@ function renderPasswordPage() {
     </div>
   `;
 
-  document.getElementById('save-pw-btn')?.addEventListener('click', async () => {
+  document.getElementById('save-pw-btn')?.addEventListener('click', async (e) => {
     const cur = document.getElementById('pw-current').value;
     const nw = document.getElementById('pw-new').value;
     const conf = document.getElementById('pw-confirm').value;
@@ -669,6 +686,11 @@ function renderPasswordPage() {
     if (!cur || !nw) { errEl.textContent = 'Completá todos los campos'; errEl.style.display = 'block'; return; }
     if (nw !== conf) { errEl.textContent = 'Las contraseñas no coinciden'; errEl.style.display = 'block'; return; }
     if (nw.length < 6) { errEl.textContent = 'La contraseña debe tener al menos 6 caracteres'; errEl.style.display = 'block'; return; }
+
+    const btn = e.currentTarget;
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<div class="loader-dots" style="--color-accent:#000"><span></span><span></span><span></span></div>`;
 
     try {
       await api('/admin/change-password', {
@@ -684,6 +706,8 @@ function renderPasswordPage() {
       errEl.textContent = e.message;
       errEl.style.display = 'block';
     }
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   });
 }
 
