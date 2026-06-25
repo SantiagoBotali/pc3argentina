@@ -18,6 +18,11 @@ async function createApp() {
   app.use('/productos', express.static(path.join(__dirname, 'productos')));
   app.use('/PC3logo.png', express.static(path.join(__dirname, 'PC3logo.png')));
   app.use('/PC3logo-whitevariant.png', express.static(path.join(__dirname, 'PC3logo-whitevariant.png')));
+  app.get('/logo-mayorista-negro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista Negro.png')));
+  app.get('/logo-mayorista-pro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO.png')));
+  app.get('/logo-mayorista-pro-negro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO Negro.png')));
+  app.get('/intro-catalogo-n.png', (req, res) => res.sendFile(path.join(__dirname, 'Intro Catálogo N.png')));
+  app.get('/intro-catalogo-b.png', (req, res) => res.sendFile(path.join(__dirname, 'Intro Catálogo B.png')));
 
   // Body parsing
   app.use(express.json());

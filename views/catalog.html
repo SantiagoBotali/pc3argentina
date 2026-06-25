@@ -4,24 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PC3 Argentina — Catálogo</title>
-  <meta name="description" content="Catálogo de vendajes deportivos PC3 Argentina. Listas Profesional y Mayorista.">
+  <meta name="description" content="Catálogo de vendajes deportivos PC3 Argentina. Listas Mayorista y Mayorista Pro.">
   <link rel="stylesheet" href="/css/main.css">
   <link rel="stylesheet" href="/css/catalog.css">
   <link rel="icon" type="image/png" href="/PC3logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://api.fontshare.com">
+  <link href="https://api.fontshare.com/v2/css?f[]=benzin@700,800,900&display=swap" rel="stylesheet">
   <script>
     if (localStorage.getItem('pc3_theme') === 'light') document.documentElement.classList.add('light');
+    if (sessionStorage.getItem('pc3_intro_shown')) document.documentElement.classList.add('intro-skip');
   </script>
 </head>
 <body class="section-profesional">
+
+<!-- ─── Intro Splash ──────────────────────────────────────────── -->
+<div class="catalog-intro" id="catalog-intro" aria-hidden="true">
+  <img class="catalog-intro__img" id="catalog-intro-img" src="" alt="" draggable="false">
+</div>
 
 <!-- ─── Header ──────────────────────────────────────────────────── -->
 <header class="site-header">
   <div class="header-inner">
     <a class="header-logo" href="/">
-      <img src="/PC3logo.png" alt="PC3 Argentina" onerror="this.style.display='none'">
+      <img id="header-logo-img" src="/PC3logo.png" alt="PC3 Argentina" onerror="this.src='/PC3logo.png'">
     </a>
     <div class="header-actions">
       <button class="theme-toggle" id="theme-toggle" aria-label="Cambiar tema">
@@ -36,27 +44,25 @@
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
         </svg>
       </button>
-      <button class="cart-tab-btn" id="cart-btn-pro" data-cart-tab="profesional" aria-label="Carrito Profesional">
-        <span class="cart-btn-icon-wrap">
+      <button class="cart-tab-btn" id="cart-btn-pro" data-cart-tab="profesional" aria-label="Carrito Mayorista">
+        <span class="cart-btn-icon">
           <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-            <line x1="3" y1="6" x2="21" y2="6"/>
-            <path d="M16 10a4 4 0 0 1-8 0"/>
+            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
           </svg>
-          <span class="cart-btn-badge" id="cart-count-pro" style="display:none">0</span>
         </span>
-        <span class="cart-btn-label">PRO</span>
-      </button>
-      <button class="cart-tab-btn cart-tab-btn--mayo" id="cart-btn-mayo" data-cart-tab="mayorista" aria-label="Carrito Mayorista">
-        <span class="cart-btn-icon-wrap">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-            <line x1="3" y1="6" x2="21" y2="6"/>
-            <path d="M16 10a4 4 0 0 1-8 0"/>
-          </svg>
-          <span class="cart-btn-badge" id="cart-count-mayo" style="display:none">0</span>
-        </span>
+        <span class="cart-btn-badge" id="cart-count-pro">0</span>
         <span class="cart-btn-label">MAY</span>
+      </button>
+      <button class="cart-tab-btn cart-tab-btn--mayo" id="cart-btn-mayo" data-cart-tab="mayorista" aria-label="Carrito Mayorista Pro">
+        <span class="cart-btn-icon">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+          </svg>
+        </span>
+        <span class="cart-btn-badge" id="cart-count-mayo">0</span>
+        <span class="cart-btn-label">PRO</span>
       </button>
     </div>
   </div>
@@ -86,7 +92,7 @@
           </span>
         </div>
         <div class="guide-card-title">Elegí tu lista</div>
-        <div class="guide-card-desc">Tocá Profesional o Mayorista. Cada lista tiene sus propios precios y monto mínimo de compra.</div>
+        <div class="guide-card-desc">Tocá Mayorista o Mayorista Pro. Cada lista tiene sus propios precios y monto mínimo de compra.</div>
       </div>
 
       <span class="guide-arrow">
@@ -136,40 +142,69 @@
   <div class="section-selector">
 
     <button class="section-card active" id="section-card-pro" data-section="profesional">
-      <div class="section-card-icon-wrap">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-        </svg>
+      <div class="section-card-top">
+        <span class="section-card-eyebrow">Lista</span>
+        <div class="section-card-badge section-card-badge--active">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><polyline points="9 12 12 15 16 9"/></svg>
+          Lista activa
+        </div>
+        <div class="section-card-badge section-card-badge--view">Ver esta lista</div>
       </div>
-      <div class="section-card-body">
-        <div class="section-card-name">Profesional</div>
-        <div class="section-card-desc">Precios para profesionales de la salud y el deporte</div>
-        <div class="section-card-min" id="section-min-label-pro">—</div>
+      <div class="section-card-main">
+        <div class="section-card-icon">
+          <svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="4,6 12,2 20,6 20,16 12,20 4,16"/>
+            <polyline points="4,6 12,10 20,6"/>
+            <line x1="12" y1="10" x2="12" y2="20"/>
+            <polyline points="4,6 12,4.5 20,6"/>
+            <rect x="10.5" y="3.8" width="3" height="1.8" rx="0.4"/>
+          </svg>
+        </div>
+        <div class="section-card-name">Mayorista</div>
       </div>
-      <div class="section-card-tag">PRO</div>
-      <div class="section-card-check">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
+      <div class="section-card-footer">
+        <span class="section-card-min-label">Compra mínima</span>
+        <span class="section-card-min" id="section-min-label-pro">—</span>
       </div>
     </button>
 
     <button class="section-card" id="section-card-mayo" data-section="mayorista">
-      <div class="section-card-icon-wrap">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>
+      <div class="section-card-top">
+        <span class="section-card-eyebrow">Lista</span>
+        <div class="section-card-badge section-card-badge--active">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="9"/><polyline points="9 12 12 15 16 9"/></svg>
+          Lista activa
+        </div>
+        <div class="section-card-badge section-card-badge--view">Ver esta lista</div>
       </div>
-      <div class="section-card-body">
-        <div class="section-card-name">Mayorista</div>
-        <div class="section-card-desc">Precios para revendedores y distribuidores</div>
-        <div class="section-card-min" id="section-min-label-mayo">—</div>
+      <div class="section-card-main">
+        <div class="section-card-icon">
+          <svg viewBox="0 0 32 28" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Top box -->
+            <polygon points="10,5 16,2 22,5 22,11 16,14 10,11"/>
+            <polyline points="10,5 16,8 22,5"/>
+            <line x1="16" y1="8" x2="16" y2="14"/>
+            <polyline points="10,5 16,3.5 22,5"/>
+            <rect x="14.5" y="2.8" width="3" height="1.4" rx="0.3"/>
+            <!-- Bottom-left box -->
+            <polygon points="3,16 9,13 15,16 15,22 9,25 3,22"/>
+            <polyline points="3,16 9,19 15,16"/>
+            <line x1="9" y1="19" x2="9" y2="25"/>
+            <polyline points="3,16 9,14.5 15,16"/>
+            <rect x="7.5" y="13.8" width="3" height="1.4" rx="0.3"/>
+            <!-- Bottom-right box -->
+            <polygon points="17,16 23,13 29,16 29,22 23,25 17,22"/>
+            <polyline points="17,16 23,19 29,16"/>
+            <line x1="23" y1="19" x2="23" y2="25"/>
+            <polyline points="17,16 23,14.5 29,16"/>
+            <rect x="21.5" y="13.8" width="3" height="1.4" rx="0.3"/>
+          </svg>
+        </div>
+        <div class="section-card-name">Mayorista <span class="sc-name-pro">PRO</span></div>
       </div>
-      <div class="section-card-tag">MAY</div>
-      <div class="section-card-check">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
+      <div class="section-card-footer">
+        <span class="section-card-min-label">Compra mínima</span>
+        <span class="section-card-min" id="section-min-label-mayo">—</span>
       </div>
     </button>
 
@@ -217,14 +252,14 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
         </svg>
-        Profesional
+        Mayorista
         <span class="cart-section-tab-count" id="sidebar-count-pro">0</span>
       </button>
       <button class="cart-section-tab" id="cart-tab-mayo" data-cart-section="mayorista">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
-        Mayorista
+        Mayorista <span class="sc-name-pro">PRO</span>
         <span class="cart-section-tab-count" id="sidebar-count-mayo">0</span>
       </button>
     </div>
@@ -256,32 +291,30 @@
     </svg>
   </a>
 
-  <button class="fab fab-cart fab-cart--pro fab-active" id="fab-cart-pro" aria-label="Abrir carrito Profesional">
-    <div class="fab-cart-icon-wrap">
+  <button class="fab fab-cart fab-cart--pro fab-active" id="fab-cart-pro" aria-label="Abrir carrito Mayorista">
+    <div class="fab-cart-icon">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-        <line x1="3" y1="6" x2="21" y2="6"/>
-        <path d="M16 10a4 4 0 0 1-8 0"/>
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
       </svg>
-      <span class="fab-cart-badge" id="fab-badge-pro" style="display:none">0</span>
     </div>
+    <span class="fab-cart-badge" id="fab-badge-pro">0</span>
     <div class="fab-cart-label">
-      <span class="fab-cart-title">Carrito PRO</span>
+      <span class="fab-cart-title">Carrito MAY</span>
       <span class="fab-cart-subtitle" id="fab-sub-pro">Vacío</span>
     </div>
   </button>
 
-  <button class="fab fab-cart fab-cart--mayo" id="fab-cart-mayo" aria-label="Abrir carrito Mayorista">
-    <div class="fab-cart-icon-wrap">
+  <button class="fab fab-cart fab-cart--mayo" id="fab-cart-mayo" aria-label="Abrir carrito Mayorista Pro">
+    <div class="fab-cart-icon">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-        <line x1="3" y1="6" x2="21" y2="6"/>
-        <path d="M16 10a4 4 0 0 1-8 0"/>
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
       </svg>
-      <span class="fab-cart-badge" id="fab-badge-mayo" style="display:none">0</span>
     </div>
+    <span class="fab-cart-badge" id="fab-badge-mayo">0</span>
     <div class="fab-cart-label">
-      <span class="fab-cart-title">Carrito MAY</span>
+      <span class="fab-cart-title">Carrito PRO</span>
       <span class="fab-cart-subtitle" id="fab-sub-mayo">Vacío</span>
     </div>
   </button>
@@ -292,6 +325,50 @@
 <script src="/js/products.js"></script>
 <script src="/js/cart.js"></script>
 <script src="/js/checkout.js"></script>
+
+<!-- ─── Intro Logic ──────────────────────────────────────────── -->
+<script>
+(function () {
+  var intro = document.getElementById('catalog-intro');
+  var img   = document.getElementById('catalog-intro-img');
+  if (!intro || !img) return;
+
+  if (sessionStorage.getItem('pc3_intro_shown')) {
+    intro.classList.add('is-done');
+    return;
+  }
+
+  var isLight = localStorage.getItem('pc3_theme') === 'light';
+  img.src = isLight ? '/intro-catalogo-b.png' : '/intro-catalogo-n.png';
+  if (isLight) intro.classList.add('catalog-intro--light');
+
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+
+  var exitTimer = null;
+
+  function triggerExit() {
+    if (intro.classList.contains('is-exiting') || intro.classList.contains('is-done')) return;
+    clearTimeout(exitTimer);
+    intro.classList.add('is-exiting');
+    setTimeout(function () {
+      intro.classList.add('is-done');
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      sessionStorage.setItem('pc3_intro_shown', '1');
+    }, 920);
+  }
+
+  img.onload = function () {
+    img.classList.add('img-visible');
+    exitTimer = setTimeout(triggerExit, 2100);
+  };
+
+  img.onerror = triggerExit;
+
+  intro.addEventListener('click', triggerExit);
+}());
+</script>
 
 </body>
 </html>

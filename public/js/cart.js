@@ -108,8 +108,8 @@ window.updateCartUI = function() {
   // Badge counts on header buttons
   const proCountEl  = document.getElementById('cart-count-pro');
   const mayoCountEl = document.getElementById('cart-count-mayo');
-  if (proCountEl)  { proCountEl.textContent  = proCount;  proCountEl.style.display  = proCount  > 0 ? 'flex' : 'none'; }
-  if (mayoCountEl) { mayoCountEl.textContent = mayoCount; mayoCountEl.style.display = mayoCount > 0 ? 'flex' : 'none'; }
+  if (proCountEl)  { proCountEl.textContent  = proCount; }
+  if (mayoCountEl) { mayoCountEl.textContent = mayoCount; }
 
   // Sidebar tab counts
   const sidebarProEl  = document.getElementById('sidebar-count-pro');

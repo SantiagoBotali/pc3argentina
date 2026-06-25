@@ -70,13 +70,27 @@ function applyTheme(theme) {
   document.body.classList.toggle('light', isLight);
 }
 
+function updateLogo() {
+  const img = document.getElementById('header-logo-img');
+  if (!img) return;
+  img.style.display = '';
+  const isPro   = state.activeSection === 'mayorista';
+  const isLight = document.body.classList.contains('light');
+  if (!isPro && !isLight) img.src = '/PC3logo.png';
+  else if (!isPro &&  isLight) img.src = '/logo-mayorista-negro.png';
+  else if ( isPro && !isLight) img.src = '/logo-mayorista-pro.png';
+  else                         img.src = '/logo-mayorista-pro-negro.png';
+}
+
 function setupTheme() {
   const saved = localStorage.getItem('pc3_theme') || 'dark';
   applyTheme(saved);
+  updateLogo();
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
     const next = document.body.classList.contains('light') ? 'dark' : 'light';
     applyTheme(next);
     localStorage.setItem('pc3_theme', next);
+    updateLogo();
   });
 }
 
@@ -97,6 +111,7 @@ function setupSectionTabs() {
       renderProductList();
       updateCartUI();
       updateSectionInfo();
+      updateLogo();
     });
   });
 }
@@ -108,8 +123,8 @@ function updateSectionInfo() {
   const proMinEl  = document.getElementById('section-min-label-pro');
   const mayoMinEl = document.getElementById('section-min-label-mayo');
 
-  if (proMinEl)  proMinEl.textContent  = `Mín. ${fmt(minPro)}`;
-  if (mayoMinEl) mayoMinEl.textContent = `Mín. ${fmt(minMayo)}`;
+  if (proMinEl)  proMinEl.textContent  = fmt(minPro);
+  if (mayoMinEl) mayoMinEl.textContent = fmt(minMayo);
 
   window.updateFabCart?.();
 }
@@ -165,7 +180,6 @@ window.updateFabCart = function() {
 
     if (badge) {
       badge.textContent = count;
-      badge.style.display = count > 0 ? 'flex' : 'none';
     }
     if (sub) {
       if (count === 0) {

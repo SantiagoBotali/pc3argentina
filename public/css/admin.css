@@ -325,6 +325,7 @@
   padding: 4px;
 }
 
+/* Legacy overlay style (kept for any remaining img-thumb contexts) */
 .img-thumb-del {
   position: absolute;
   top: 3px;
@@ -343,8 +344,18 @@
   opacity: 0;
   transition: opacity var(--transition);
 }
-
 .img-thumb:hover .img-thumb-del { opacity: 1; }
+
+/* Variant row: delete button is inline in the flex row, always visible */
+.img-color-row .img-thumb-del {
+  position: static;
+  opacity: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 14px;
+  align-self: flex-start;
+}
 
 .upload-zone {
   border: 2px dashed var(--color-border);
@@ -544,6 +555,13 @@
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
 }
+
+/* ─── Variant thumbnail (edit photo) ────────────────────────── */
+.img-edit-thumb .edit-thumb-hint { background: rgba(0,0,0,0); transition: background 0.15s; }
+.img-edit-thumb .edit-thumb-icon { opacity: 0; transition: opacity 0.15s; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7)); }
+.img-edit-thumb:hover .edit-thumb-hint { background: rgba(0,0,0,0.5); }
+.img-edit-thumb:hover .edit-thumb-icon { opacity: 1; }
+.img-eyedropper-btn:hover { background: rgba(255,255,255,0.14) !important; }
 
 /* ─── Responsive admin ───────────────────────────────────────── */
 @media (max-width: 900px) {

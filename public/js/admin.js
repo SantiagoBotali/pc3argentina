@@ -8,6 +8,7 @@ function productImgSrc(slug, filename) {
 // ─── Admin SPA ────────────────────────────────────────────────
 const admin = {
   products: [],
+  colors: [],
   currentPage: 'products',
   editProductId: null,
 };
@@ -59,10 +60,11 @@ function navigate(page) {
   admin.currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
 
-  const titles = { products: 'Productos', settings: 'Configuración', password: 'Cambiar Contraseña' };
+  const titles = { products: 'Productos', colors: 'Paleta de colores', settings: 'Configuración', password: 'Cambiar Contraseña' };
   document.getElementById('page-title').textContent = titles[page] || page;
 
   if (page === 'products') renderProductsPage();
+  else if (page === 'colors') renderColorsPage();
   else if (page === 'settings') renderSettingsPage();
   else if (page === 'password') renderPasswordPage();
 }
@@ -305,11 +307,35 @@ function buildEditForm(p) {
     <div class="section-divider" style="margin-top:16px">Imágenes y colores</div>
 
     <div id="img-color-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
-      ${(p.images || []).map((img) => `
-        <div class="img-color-row" data-img-id="${img.id}" style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--color-surface2);border-radius:8px">
-          <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
-            style="width:56px;height:56px;object-fit:cover;border-radius:6px;flex-shrink:0">
-          <div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">
+      ${(p.images || []).map((img) => {
+        const hex = img.color_hex || '#cccccc';
+        const libSwatches = admin.colors.map(c =>
+          `<button type="button" class="lib-color-swatch" data-hex="${c.hex}" data-name="${c.name}"
+            title="${c.name}"
+            style="width:20px;height:20px;border-radius:50%;background:${c.hex};border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:transform 0.12s,outline 0.12s;outline:2px solid transparent;outline-offset:1px">
+          </button>`
+        ).join('');
+        return `
+        <div class="img-color-row" data-img-id="${img.id}" style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:var(--color-surface2);border-radius:8px">
+
+          <!-- Thumbnail: click to replace photo -->
+          <div class="img-edit-thumb" title="Click para cambiar la foto"
+            style="width:52px;height:52px;flex-shrink:0;position:relative;border-radius:6px;overflow:hidden">
+            <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
+              style="width:52px;height:52px;object-fit:cover;display:block">
+            <div class="edit-thumb-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+              <svg class="edit-thumb-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </div>
+            <input type="file" class="img-replace-file" accept="image/*"
+              data-img-id="${img.id}" data-product-id="${p.id}"
+              style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+          </div>
+
+          <!-- Fields -->
+          <div style="display:flex;flex-direction:column;gap:7px;flex:1;min-width:0">
             <input type="text"
               class="form-control img-color-name"
               data-img-id="${img.id}"
@@ -317,6 +343,31 @@ function buildEditForm(p) {
               value="${(img.color_name || '').replace(/"/g, '&quot;')}"
               placeholder="Nombre del color (ej: Rojo)"
               style="font-size:13px;padding:5px 8px">
+
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:6px">
+                <!-- Color preview circle (shows current color) -->
+                <div class="img-color-preview" style="width:28px;height:28px;border-radius:50%;background:${hex};border:1.5px solid rgba(255,255,255,0.2);box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0" title="Color actual"></div>
+                <!-- Eyedropper: sample color from the variant photo -->
+                <button type="button" class="img-eyedropper-btn" title="Tomar color de la foto"
+                  style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;color:var(--color-text-muted)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/>
+                    <path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/>
+                  </svg>
+                </button>
+                <input type="text"
+                  class="form-control img-color-hex-text"
+                  data-img-id="${img.id}"
+                  data-product-id="${p.id}"
+                  value="${hex}"
+                  maxlength="7"
+                  placeholder="#rrggbb"
+                  style="width:80px;font-size:12px;padding:4px 6px;font-family:monospace">
+              </div>
+              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">${libSwatches}</div>
+            </div>
+
             <div style="display:flex;align-items:center;gap:6px">
               <label style="font-size:11px;color:var(--color-text-muted);white-space:nowrap">Stock:</label>
               <input type="number"
@@ -328,13 +379,15 @@ function buildEditForm(p) {
                 style="width:80px;font-size:13px;padding:5px 8px">
             </div>
           </div>
+
+          <!-- Delete variant -->
           <button class="btn btn-danger btn-sm img-thumb-del"
             data-img-id="${img.id}"
             data-product-id="${p.id}"
-            title="Eliminar imagen"
+            title="Eliminar variante"
             style="flex-shrink:0">✕</button>
-        </div>
-      `).join('')}
+        </div>`;
+      }).join('')}
     </div>
 
     <div class="upload-zone" id="upload-zone">
@@ -383,7 +436,7 @@ function setupEditFormEvents(product) {
     // Image delete
     document.getElementById('img-color-list')?.addEventListener('click', async (e) => {
       if (!e.target.classList.contains('img-thumb-del')) return;
-      if (!confirm('¿Eliminar esta imagen?')) return;
+      if (!confirm('¿Eliminar esta variante? Se borrará la imagen y su información de color/stock.')) return;
       const imgId = e.target.dataset.imgId;
       const productId = e.target.dataset.productId;
       try {
@@ -393,32 +446,110 @@ function setupEditFormEvents(product) {
       } catch (err) { toast(err.message, 'error'); }
     });
 
+    // Eyedropper button → sample color from variant photo
+    document.getElementById('img-color-list')?.addEventListener('click', (e) => {
+      if (e.target.closest('.img-eyedropper-btn')) {
+        const row   = e.target.closest('.img-color-row');
+        const imgEl = row?.querySelector('.img-edit-thumb img');
+        if (!imgEl) return;
+        openEyedropper(imgEl.src, (hex) => {
+          const preview = row.querySelector('.img-color-preview');
+          const hexText = row.querySelector('.img-color-hex-text');
+          if (preview) preview.style.background = hex;
+          if (hexText) { hexText.value = hex; hexText.dispatchEvent(new Event('change', { bubbles: true })); }
+        });
+      }
+      // Library swatch click → set color name + hex
+      if (e.target.classList.contains('lib-color-swatch')) {
+        const hex       = e.target.dataset.hex;
+        const name      = e.target.dataset.name;
+        const row       = e.target.closest('.img-color-row');
+        if (!row) return;
+        const preview   = row.querySelector('.img-color-preview');
+        const hexText   = row.querySelector('.img-color-hex-text');
+        const nameInput = row.querySelector('.img-color-name');
+        if (preview)   preview.style.background = hex;
+        if (hexText)   hexText.value = hex;
+        if (nameInput && !nameInput.value.trim()) nameInput.value = name;
+        row.querySelector('.img-color-hex-text').dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
     // Color name and stock autosave
     document.getElementById('img-color-list')?.addEventListener('change', async (e) => {
       const isColorName = e.target.classList.contains('img-color-name');
-      const isStock = e.target.classList.contains('img-color-stock');
-      if (!isColorName && !isStock) return;
+      const isStock     = e.target.classList.contains('img-color-stock');
+      const isHexText   = e.target.classList.contains('img-color-hex-text');
+      if (!isColorName && !isStock && !isHexText) return;
 
       const imgId = e.target.dataset.imgId;
       const productId = e.target.dataset.productId;
       const row = e.target.closest('.img-color-row');
       if (!row) return;
 
+      if (isHexText) {
+        const val = e.target.value.trim();
+        if (/^#[0-9a-f]{6}$/i.test(val)) {
+          const preview = row.querySelector('.img-color-preview');
+          if (preview) preview.style.background = val;
+        }
+      }
+
       const colorName = row.querySelector('.img-color-name').value.trim();
+      const colorHex  = row.querySelector('.img-color-hex-text').value.trim();
       const stock = parseInt(row.querySelector('.img-color-stock').value) || 0;
 
       try {
         await api(`/admin/products/${productId}/images/${imgId}`, {
           method: 'PUT',
-          body: { color_name: colorName, stock }
+          body: { color_name: colorName, color_hex: colorHex, stock }
         });
         // Update in-memory data
         const prod = admin.products.find(p => p.id === parseInt(productId));
         if (prod) {
           const img = (prod.images || []).find(i => i.id === parseInt(imgId));
-          if (img) { img.color_name = colorName; img.stock = stock; }
+          if (img) { img.color_name = colorName; img.color_hex = colorHex; img.stock = stock; }
         }
       } catch (err) { toast(err.message, 'error'); }
+    });
+
+    // Variant photo replacement
+    document.getElementById('img-color-list')?.addEventListener('change', async (e) => {
+      if (!e.target.classList.contains('img-replace-file')) return;
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const imgId     = e.target.dataset.imgId;
+      const productId = e.target.dataset.productId;
+      const row       = e.target.closest('.img-color-row');
+      const thumbImg  = row?.querySelector('.img-edit-thumb img');
+      const originalSrc = thumbImg?.src;
+
+      if (thumbImg) thumbImg.src = URL.createObjectURL(file);
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const res = await fetch(`/api/admin/products/${productId}/images/${imgId}/file`, {
+          method: 'PUT',
+          body: formData,
+        });
+        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `Error ${res.status}`); }
+        const updated = await res.json();
+
+        const prod = admin.products.find(p => p.id === parseInt(productId));
+        if (prod) {
+          const img = (prod.images || []).find(i => i.id === parseInt(imgId));
+          if (img) img.filename = updated.filename;
+        }
+        if (thumbImg) thumbImg.src = updated.filename.startsWith('http') ? updated.filename : `/productos/${prod?.slug}/${updated.filename}`;
+        toast('Foto actualizada');
+      } catch (err) {
+        if (thumbImg && originalSrc) thumbImg.src = originalSrc;
+        toast(err.message, 'error');
+      }
+      e.target.value = '';
     });
 
     // Image upload
@@ -513,6 +644,7 @@ async function saveProduct(existingProduct) {
     renderProductsPage();
   } catch (e) {
     showEfError(errorEl, e.message);
+  } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = originalHtml; }
   }
 }
@@ -711,8 +843,209 @@ function renderPasswordPage() {
   });
 }
 
+// ─── Colors Page ──────────────────────────────────────────────
+async function renderColorsPage() {
+  const content = document.getElementById('admin-content');
+  content.innerHTML = `<div class="loader-wrap"><div class="loader-dots"><span></span><span></span><span></span></div><span>Cargando colores...</span></div>`;
+
+  try {
+    admin.colors = await api('/admin/colors');
+  } catch (e) {
+    content.innerHTML = `<p style="color:var(--color-danger)">${e.message}</p>`;
+    return;
+  }
+
+  function colorRow(c) {
+    return `
+      <div class="color-lib-row" data-color-id="${c.id}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--color-surface2);border-radius:8px">
+        <label style="position:relative;width:36px;height:36px;flex-shrink:0;display:inline-block;cursor:pointer;border-radius:50%;overflow:hidden" title="Click para cambiar color">
+          <input type="color" class="color-lib-picker" data-color-id="${c.id}" value="${c.hex}"
+            style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0">
+          <div class="color-lib-preview" style="position:absolute;inset:0;background:${c.hex};border:1.5px solid rgba(255,255,255,0.2);box-shadow:0 1px 4px rgba(0,0,0,0.3);pointer-events:none"></div>
+        </label>
+        <input type="text" class="form-control color-lib-hex" data-color-id="${c.id}" value="${c.hex}" maxlength="7" placeholder="#rrggbb" style="width:90px;font-size:13px;font-family:monospace;padding:5px 8px">
+        <input type="text" class="form-control color-lib-name" data-color-id="${c.id}" value="${c.name}" placeholder="Nombre del color" style="flex:1;font-size:13px;padding:5px 8px">
+        <button class="btn btn-danger btn-sm del-color-btn" data-color-id="${c.id}" style="flex-shrink:0">✕</button>
+      </div>
+    `;
+  }
+
+  function colorsGrid() {
+    return admin.colors.map(colorRow).join('');
+  }
+
+  content.innerHTML = `
+    <div style="max-width:560px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:10px">
+        <p style="font-size:13px;color:var(--color-text-muted);margin:0">Estos colores están disponibles como accesos rápidos al editar variantes de productos.</p>
+        <button class="btn btn-primary btn-sm" id="btn-add-color" style="white-space:nowrap">+ Agregar color</button>
+      </div>
+      <div id="color-lib-list" style="display:flex;flex-direction:column;gap:8px">
+        ${colorsGrid()}
+      </div>
+    </div>
+  `;
+
+  const list = document.getElementById('color-lib-list');
+
+  // Picker change → sync hex field + preview
+  list.addEventListener('change', async (e) => {
+    const isPicker = e.target.classList.contains('color-lib-picker');
+    const isHex    = e.target.classList.contains('color-lib-hex');
+    const isName   = e.target.classList.contains('color-lib-name');
+    if (!isPicker && !isHex && !isName) return;
+
+    const id  = e.target.dataset.colorId;
+    const row = e.target.closest('.color-lib-row');
+
+    if (isPicker) {
+      const hex = e.target.value;
+      row.querySelector('.color-lib-hex').value     = hex;
+      row.querySelector('.color-lib-preview').style.background = hex;
+    }
+    if (isHex) {
+      const val = e.target.value.trim();
+      if (/^#[0-9a-f]{6}$/i.test(val)) {
+        row.querySelector('.color-lib-picker').value = val;
+        row.querySelector('.color-lib-preview').style.background = val;
+      }
+    }
+
+    const name = row.querySelector('.color-lib-name').value.trim();
+    const hex  = row.querySelector('.color-lib-hex').value.trim();
+    if (!name || !/^#[0-9a-f]{6}$/i.test(hex)) return;
+
+    try {
+      const updated = await api(`/admin/colors/${id}`, { method: 'PUT', body: { name, hex } });
+      const idx = admin.colors.findIndex(c => c.id === updated.id);
+      if (idx >= 0) admin.colors[idx] = updated;
+      toast('Color actualizado');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  // Delete color
+  list.addEventListener('click', async (e) => {
+    if (!e.target.classList.contains('del-color-btn')) return;
+    if (!confirm('¿Eliminar este color de la paleta?')) return;
+    const id = e.target.dataset.colorId;
+    try {
+      await api(`/admin/colors/${id}`, { method: 'DELETE' });
+      admin.colors = admin.colors.filter(c => String(c.id) !== String(id));
+      e.target.closest('.color-lib-row').remove();
+      toast('Color eliminado');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+
+  // Add color
+  document.getElementById('btn-add-color')?.addEventListener('click', async () => {
+    const name = prompt('Nombre del color (ej: Verde lima):');
+    if (!name) return;
+    const hex = prompt('Código hexadecimal (ej: #84CC16):', '#cccccc');
+    if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) { alert('Código hex inválido. Usá el formato #RRGGBB'); return; }
+    try {
+      const newColor = await api('/admin/colors', { method: 'POST', body: { name: name.trim(), hex: hex.trim() } });
+      admin.colors.push(newColor);
+      const row = document.createElement('div');
+      row.innerHTML = colorRow(newColor);
+      list.appendChild(row.firstElementChild);
+      toast('Color agregado');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
 // ─── Init ─────────────────────────────────────────────────────
+// ─── Image Eyedropper ────────────────────────────────────────
+let _eyedropCallback = null;
+
+function injectEyedropperModal() {
+  const modal = document.createElement('div');
+  modal.id = 'eyedrop-modal';
+  modal.style.cssText = 'display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.78);align-items:center;justify-content:center;padding:16px';
+  modal.innerHTML = `
+    <div style="background:#181824;border-radius:14px;padding:20px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,0.6)">
+      <div style="font-size:12px;color:#888;margin-bottom:12px;text-align:center;letter-spacing:0.04em">Mové el cursor sobre la imagen y hacé click para capturar el color</div>
+      <div style="position:relative;cursor:crosshair;line-height:0;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.08)">
+        <canvas id="eyedrop-canvas" style="display:block;width:100%;height:auto"></canvas>
+        <div id="eyedrop-loupe" style="position:absolute;pointer-events:none;opacity:0;width:36px;height:36px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.5),0 2px 12px rgba(0,0,0,0.4);transform:translate(-50%,-50%);top:0;left:0"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+        <div id="eyedrop-preview" style="width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,0.2);flex-shrink:0;background:#cccccc;transition:background 0.08s"></div>
+        <code id="eyedrop-hex" style="font-size:14px;color:#e0e0e0;font-family:monospace;letter-spacing:0.04em">#cccccc</code>
+        <button id="eyedrop-cancel" type="button" style="margin-left:auto;padding:7px 16px;border:none;border-radius:8px;background:rgba(255,255,255,0.08);color:#ccc;cursor:pointer;font-size:13px">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('eyedrop-cancel').addEventListener('click', () => {
+    modal.style.display = 'none';
+    _eyedropCallback = null;
+  });
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) { modal.style.display = 'none'; _eyedropCallback = null; }
+  });
+}
+
+function openEyedropper(imgSrc, onSelect) {
+  _eyedropCallback = onSelect;
+  const modal   = document.getElementById('eyedrop-modal');
+  const canvas  = document.getElementById('eyedrop-canvas');
+  const ctx     = canvas.getContext('2d');
+  const loupe   = document.getElementById('eyedrop-loupe');
+  const preview = document.getElementById('eyedrop-preview');
+  const hexLbl  = document.getElementById('eyedrop-hex');
+
+  function pickPixel(e) {
+    try {
+      const rect   = canvas.getBoundingClientRect();
+      const scaleX = canvas.width  / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const x = Math.max(0, Math.min(Math.floor((e.clientX - rect.left) * scaleX), canvas.width  - 1));
+      const y = Math.max(0, Math.min(Math.floor((e.clientY - rect.top)  * scaleY), canvas.height - 1));
+      const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+      return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+    } catch (_) {
+      return null; // Canvas tainted (CORS); fall back gracefully
+    }
+  }
+
+  canvas.onmousemove = (e) => {
+    const hex = pickPixel(e);
+    if (!hex) return;
+    loupe.style.left    = `${e.offsetX}px`;
+    loupe.style.top     = `${e.offsetY}px`;
+    loupe.style.opacity = '1';
+    loupe.style.background = hex;
+    preview.style.background = hex;
+    hexLbl.textContent = hex;
+  };
+  canvas.onmouseleave = () => { loupe.style.opacity = '0'; };
+  canvas.onclick = (e) => {
+    const hex = pickPixel(e);
+    if (!hex) { toast('No se pudo leer el color. Usá el campo de texto para ingresar el hex.', 'error'); return; }
+    modal.style.display = 'none';
+    if (_eyedropCallback) { _eyedropCallback(hex); _eyedropCallback = null; }
+  };
+
+  const image = new Image();
+  image.crossOrigin = 'anonymous';
+  image.onload = () => {
+    const maxW  = 360;
+    const scale = Math.min(1, maxW / image.naturalWidth);
+    canvas.width  = Math.round(image.naturalWidth  * scale);
+    canvas.height = Math.round(image.naturalHeight * scale);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    modal.style.display = 'flex';
+  };
+  image.onerror = () => { toast('No se pudo cargar la imagen para el cuentagotas', 'error'); _eyedropCallback = null; };
+  // Append a cache-buster so the browser fetches with CORS headers even if
+  // the same URL was previously cached without them (e.g. from an <img> tag).
+  image.src = imgSrc + (imgSrc.includes('?') ? '&' : '?') + '_ec=' + Date.now();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  injectEyedropperModal();
+
   // Nav items
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => navigate(item.dataset.page));
@@ -727,6 +1060,9 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     if (confirm('¿Cerrar sesión?')) e.target.submit();
   });
+
+  // Load global color palette
+  api('/admin/colors').then(colors => { admin.colors = colors || []; }).catch(() => {});
 
   // Start on products page
   navigate('products');

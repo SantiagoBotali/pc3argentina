@@ -363,22 +363,49 @@ router.put('/admin/products/:id/images/reorder', requireAdmin, async (req, res) 
   }
 });
 
+router.put('/admin/products/:id/images/:imgId/file', requireAdmin, (req, res) => {
+  upload.single('image')(req, res, async (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' });
+    try {
+      const db = getDb();
+      const img = await db.prepare(
+        `SELECT pi.*, p.slug FROM product_images pi JOIN products p ON p.id = pi.product_id WHERE pi.id = ? AND pi.product_id = ?`
+      ).get(req.params.imgId, req.params.id);
+      if (!img) return res.status(404).json({ error: 'Imagen no encontrada' });
+
+      const pubId = cloudinaryPublicId(img.filename);
+      if (pubId) await cloudinary.uploader.destroy(pubId).catch(() => {});
+
+      const url = await uploadToCloudinary(req.file.buffer, `pc3/${img.slug}`);
+      await db.prepare(`UPDATE product_images SET filename = ? WHERE id = ?`).run(url, req.params.imgId);
+
+      invalidateCache();
+      res.json(await db.prepare(`SELECT * FROM product_images WHERE id = ?`).get(req.params.imgId));
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+});
+
 router.put('/admin/products/:id/images/:imgId', requireAdmin, async (req, res) => {
   try {
     const db = getDb();
-    const { color_name, stock } = req.body;
+    const { color_name, color_hex, stock } = req.body;
     const img = await db.prepare(
       `SELECT * FROM product_images WHERE id = ? AND product_id = ?`
     ).get(req.params.imgId, req.params.id);
     if (!img) return res.status(404).json({ error: 'Imagen no encontrada' });
 
     await db.prepare(
-      `UPDATE product_images SET color_name = ?, stock = ? WHERE id = ?`
+      `UPDATE product_images SET color_name = ?, color_hex = ?, stock = ? WHERE id = ?`
     ).run(
       color_name != null ? String(color_name).trim() : img.color_name,
-      stock != null ? parseInt(stock) : img.stock,
+      color_hex  != null ? String(color_hex).trim()  : img.color_hex,
+      stock      != null ? parseInt(stock)            : img.stock,
       req.params.imgId,
     );
+    invalidateCache();
     res.json(await db.prepare(`SELECT * FROM product_images WHERE id = ?`).get(req.params.imgId));
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -470,6 +497,71 @@ router.post('/admin/change-password', requireAdmin, async (req, res) => {
 
     const newHash = bcrypt.hashSync(new_password, 10);
     await db.prepare(`UPDATE admin_users SET password_hash = ? WHERE id = ?`).run(newHash, req.session.adminId);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Colors ─────────────────────────────────────────────────────
+
+router.get('/colors', async (req, res) => {
+  try {
+    const db = getDb();
+    const colors = await db.prepare(`SELECT * FROM colors ORDER BY sort_order, id`).all();
+    res.json(colors);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/admin/colors', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const colors = await db.prepare(`SELECT * FROM colors ORDER BY sort_order, id`).all();
+    res.json(colors);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/admin/colors', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { name, hex } = req.body;
+    if (!name || !hex) return res.status(400).json({ error: 'name y hex requeridos' });
+    const maxOrder = await db.prepare(`SELECT MAX(sort_order) AS m FROM colors`).get();
+    const nextOrder = (maxOrder?.m ?? -1) + 1;
+    const result = await db.prepare(
+      `INSERT INTO colors (name, hex, sort_order) VALUES (?, ?, ?)`
+    ).run(name.trim(), hex.trim(), nextOrder);
+    res.json(await db.prepare(`SELECT * FROM colors WHERE id = ?`).get(result.lastInsertRowid));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/admin/colors/:id', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { name, hex } = req.body;
+    const existing = await db.prepare(`SELECT * FROM colors WHERE id = ?`).get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Color no encontrado' });
+    await db.prepare(`UPDATE colors SET name = ?, hex = ? WHERE id = ?`).run(
+      name != null ? name.trim() : existing.name,
+      hex  != null ? hex.trim()  : existing.hex,
+      req.params.id
+    );
+    res.json(await db.prepare(`SELECT * FROM colors WHERE id = ?`).get(req.params.id));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/admin/colors/:id', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    await db.prepare(`DELETE FROM colors WHERE id = ?`).run(req.params.id);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

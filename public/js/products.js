@@ -82,14 +82,15 @@ function buildProductRow(product, section, rowNum) {
         <div class="row-swatch-circles">
           ${images.map((img, i) => {
             const label = img.color_name || variantLabel(img.filename, i);
+            const hex   = img.color_hex  || '#cccccc';
             return `<button class="row-swatch js-swatch ${i === 0 ? 'active' : ''}"
               data-swatch-idx="${i}"
               data-src="${productImgSrc(product.slug, img.filename)}"
               data-color-name="${label}"
               data-stock="${img.stock || 0}"
               aria-label="${label}"
-              title="${label}">
-              <img src="${productImgSrc(product.slug, img.filename)}" alt="" loading="lazy">
+              title="${label}"
+              style="background-color:${hex}">
             </button>`;
           }).join('')}
         </div>

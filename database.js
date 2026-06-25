@@ -28,7 +28,7 @@ function prepare(sql) {
   // Tables like `settings` (TEXT primary key) and `user_sessions` do not have one.
   const isInsert = /^\s*INSERT/i.test(sql);
   const hasReturning = /RETURNING/i.test(sql);
-  const hasSerialId = /INSERT\s+INTO\s+(products|product_images|discount_tiers|admin_users)\b/i.test(sql);
+  const hasSerialId = /INSERT\s+INTO\s+(products|product_images|discount_tiers|admin_users|colors)\b/i.test(sql);
   const insertQuery = isInsert && !hasReturning && hasSerialId ? pgQuery + ' RETURNING id' : pgQuery;
 
   return {
@@ -103,6 +103,7 @@ async function init() {
       product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
       filename    TEXT    NOT NULL,
       color_name  TEXT    NOT NULL DEFAULT '',
+      color_hex   TEXT    NOT NULL DEFAULT '',
       stock       INTEGER NOT NULL DEFAULT 0,
       sort_order  INTEGER NOT NULL DEFAULT 0
     )
@@ -134,10 +135,37 @@ async function init() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS colors (
+      id         SERIAL PRIMARY KEY,
+      name       TEXT    NOT NULL,
+      hex        TEXT    NOT NULL DEFAULT '#cccccc',
+      sort_order INTEGER NOT NULL DEFAULT 0
+    )
+  `);
+
   // ── Migrations (idempotent column additions) ──────────────────────
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_public INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_name TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_hex TEXT NOT NULL DEFAULT ''`);
+
+  // ── Seed default colors if table is empty ─────────────────────────
+  const colorCount = await pool.query(`SELECT COUNT(*) FROM colors`);
+  if (parseInt(colorCount.rows[0].count) === 0) {
+    await pool.query(`
+      INSERT INTO colors (name, hex, sort_order) VALUES
+        ('Azul',        '#38BDF8', 0),
+        ('Negro',       '#1C1C1C', 1),
+        ('Beige',       '#C8B49A', 2),
+        ('Azul marino', '#1E3A5F', 3),
+        ('Rojo',        '#DC2626', 4),
+        ('Verde',       '#16A34A', 5),
+        ('Blanco',      '#E8E8E8', 6),
+        ('Rosa',        '#E91E8C', 7),
+        ('Amarillo',    '#F5C518', 8)
+    `);
+  }
 
   return { prepare, getClient, query, exec, save };
 }
