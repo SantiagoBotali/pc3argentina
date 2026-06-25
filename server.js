@@ -21,8 +21,6 @@ async function createApp() {
   app.get('/logo-mayorista-negro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista Negro.png')));
   app.get('/logo-mayorista-pro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO.png')));
   app.get('/logo-mayorista-pro-negro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO Negro.png')));
-  app.get('/intro-catalogo-n.png', (req, res) => res.sendFile(path.join(__dirname, 'Intro Catálogo N.png')));
-  app.get('/intro-catalogo-b.png', (req, res) => res.sendFile(path.join(__dirname, 'Intro Catálogo B.png')));
 
   // Body parsing
   app.use(express.json());
