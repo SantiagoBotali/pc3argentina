@@ -28,7 +28,7 @@ function prepare(sql) {
   // Tables like `settings` (TEXT primary key) and `user_sessions` do not have one.
   const isInsert = /^\s*INSERT/i.test(sql);
   const hasReturning = /RETURNING/i.test(sql);
-  const hasSerialId = /INSERT\s+INTO\s+(products|product_images|discount_tiers|admin_users|colors)\b/i.test(sql);
+  const hasSerialId = /INSERT\s+INTO\s+(products|product_images|discount_tiers|admin_users|colors|orders|order_items)\b/i.test(sql);
   const insertQuery = isInsert && !hasReturning && hasSerialId ? pgQuery + ' RETURNING id' : pgQuery;
 
   return {
@@ -166,6 +166,36 @@ async function init() {
         ('Amarillo',    '#F5C518', 8)
     `);
   }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id           SERIAL PRIMARY KEY,
+      status       TEXT        NOT NULL DEFAULT 'pending',
+      section      TEXT        NOT NULL DEFAULT '',
+      client_name  TEXT        NOT NULL DEFAULT '',
+      client_phone TEXT        NOT NULL DEFAULT '',
+      delivery     TEXT        NOT NULL DEFAULT 'retiro',
+      address      TEXT        NOT NULL DEFAULT '',
+      comprobante  TEXT        NOT NULL DEFAULT '',
+      notes        TEXT        NOT NULL DEFAULT '',
+      total        INTEGER     NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      confirmed_at TIMESTAMPTZ
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS order_items (
+      id           SERIAL PRIMARY KEY,
+      order_id     INTEGER     NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id   INTEGER     REFERENCES products(id) ON DELETE SET NULL,
+      product_name TEXT        NOT NULL DEFAULT '',
+      color_name   TEXT        NOT NULL DEFAULT '',
+      quantity     INTEGER     NOT NULL DEFAULT 1,
+      unit_price   INTEGER     NOT NULL DEFAULT 0,
+      subtotal     INTEGER     NOT NULL DEFAULT 0
+    )
+  `);
 
   return { prepare, getClient, query, exec, save };
 }
