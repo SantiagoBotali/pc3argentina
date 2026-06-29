@@ -308,6 +308,179 @@ router.post('/admin/orders', requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/admin/orders/:id', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const order = await getOrderFull(db, req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+    res.json(order);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/admin/orders/:id', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const order = await db.prepare(`SELECT * FROM orders WHERE id = ?`).get(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: 'Solo se pueden editar pedidos pendientes' });
+    }
+
+    const {
+      section      = order.section,
+      client_name  = order.client_name,
+      client_phone = order.client_phone,
+      delivery     = order.delivery,
+      address      = order.address,
+      comprobante  = order.comprobante,
+      notes        = order.notes,
+    } = req.body;
+
+    await db.prepare(`
+      UPDATE orders SET
+        section = ?, client_name = ?, client_phone = ?,
+        delivery = ?, address = ?, comprobante = ?, notes = ?
+      WHERE id = ?
+    `).run(section, client_name, client_phone, delivery, address, comprobante, notes, req.params.id);
+
+    res.json(await getOrderFull(db, req.params.id));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/admin/orders/:id/items', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const order = await db.prepare(`SELECT * FROM orders WHERE id = ?`).get(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: 'Solo se pueden editar pedidos pendientes' });
+    }
+
+    const { items = [] } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items requerido' });
+    }
+
+    const safeItems = items
+      .map(i => ({
+        product_id:   parseInt(i.product_id) || null,
+        product_name: String(i.product_name || '').trim(),
+        color_name:   String(i.color_name   || '').trim(),
+        quantity:     Math.max(1, parseInt(i.quantity)   || 1),
+        unit_price:   Math.max(0, parseInt(i.unit_price) || 0),
+      }))
+      .filter(i => i.product_name || i.product_id);
+
+    const total = safeItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM order_items WHERE order_id = $1`, [req.params.id]);
+      for (const item of safeItems) {
+        const subtotal = item.unit_price * item.quantity;
+        await client.query(
+          `INSERT INTO order_items (order_id, product_id, product_name, color_name, quantity, unit_price, subtotal)
+           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [req.params.id, item.product_id, item.product_name, item.color_name, item.quantity, item.unit_price, subtotal]
+        );
+      }
+      await client.query(`UPDATE orders SET total = $1 WHERE id = $2`, [total, req.params.id]);
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    res.json(await getOrderFull(db, req.params.id));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/admin/orders/:id/confirm', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const order = await getOrderFull(db, req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: 'Solo se pueden confirmar pedidos pendientes' });
+    }
+
+    // Verificar stock para todos los ítems con product_id
+    const stockErrors = [];
+    for (const item of order.items) {
+      if (!item.product_id) continue;
+      const product = await db.prepare(
+        `SELECT id, name, stock FROM products WHERE id = ?`
+      ).get(item.product_id);
+      if (!product) continue;
+      if (product.stock < item.quantity) {
+        stockErrors.push({
+          product_name: item.product_name,
+          requested:    item.quantity,
+          available:    product.stock,
+        });
+      }
+    }
+
+    if (stockErrors.length > 0) {
+      return res.status(400).json({ error: 'Stock insuficiente', stock_errors: stockErrors });
+    }
+
+    // Descontar stock y confirmar en una transacción
+    const client = await db.getClient();
+    try {
+      await client.query('BEGIN');
+      for (const item of order.items) {
+        if (!item.product_id) continue;
+        await client.query(
+          `UPDATE products SET stock = stock - $1, updated_at = NOW() WHERE id = $2`,
+          [item.quantity, item.product_id]
+        );
+      }
+      await client.query(
+        `UPDATE orders SET status = 'confirmed', confirmed_at = NOW() WHERE id = $1`,
+        [req.params.id]
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    invalidateCache();
+    res.json(await getOrderFull(db, req.params.id));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/admin/orders/:id/cancel', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const order = await db.prepare(`SELECT * FROM orders WHERE id = ?`).get(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Pedido no encontrado' });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: 'Solo se pueden cancelar pedidos pendientes' });
+    }
+    await db.prepare(
+      `UPDATE orders SET status = 'cancelled', confirmed_at = NOW() WHERE id = ?`
+    ).run(req.params.id);
+    res.json(await getOrderFull(db, req.params.id));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/admin/products', requireAdmin, async (req, res) => {
   try {
     const db = getDb();
