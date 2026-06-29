@@ -1,4 +1,41 @@
 // ─── Checkout ─────────────────────────────────────────────────
+
+async function saveOrderToBackend(section, name, phone, delivery, address, comprobante) {
+  const items = Object.values(state.carts[section] || {});
+  const orderItems = items.map(item => {
+    const product = state.products.find(p => p.id === item.productId);
+    if (!product) return null;
+    const { price } = getEffectivePrice(product, section, item.quantity);
+    return {
+      product_id:   product.id,
+      product_name: product.name,
+      color_name:   item.colorName || '',
+      quantity:     item.quantity,
+      unit_price:   price,
+    };
+  }).filter(Boolean);
+
+  if (!orderItems.length) return;
+
+  try {
+    await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        section,
+        client_name:  name,
+        client_phone: phone,
+        delivery,
+        address:      address || '',
+        comprobante:  comprobante || 'Consumidor Final A',
+        items:        orderItems,
+      }),
+    });
+  } catch (_) {
+    // best-effort: si falla, el flujo de WhatsApp continúa igual
+  }
+}
+
 window.openCheckout = async function(section) {
   // Validate stock
   const items = Object.values(state.carts[section] || {});
@@ -257,6 +294,9 @@ function sendWhatsApp(section, stockIssues) {
   const message = lines.join('\n');
   const waNumber = state.settings.whatsapp_number || '5493492310744';
   const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
+
+  // Guardar pedido en backend — best-effort, no bloquea si falla
+  saveOrderToBackend(section, name, phone, delivery, address, comprobante);
 
   window.open(url, '_blank');
 
