@@ -133,7 +133,311 @@ function renderOrdersTable(wrap) {
   `;
 }
 
-// Placeholder — se completa en Task 6
-function openOrderPanel(orderId) {
-  toast('Panel de pedido próximamente', 'success');
+// ─── Order Panel ──────────────────────────────────────────────
+
+async function openOrderPanel(orderId) {
+  const panel    = document.getElementById('edit-panel');
+  const body     = document.getElementById('edit-panel-body');
+  const titleEl  = document.getElementById('edit-panel-title');
+  const overlay  = document.getElementById('panel-overlay');
+  const saveBtn  = document.getElementById('save-product-btn');
+
+  titleEl.textContent = orderId ? `Pedido #${orderId}` : 'Nuevo pedido';
+  body.innerHTML = `<div class="loader-wrap"><div class="loader-dots"><span></span><span></span><span></span></div></div>`;
+  saveBtn.style.display = 'none';
+  panel.classList.add('open');
+  overlay.classList.add('visible');
+
+  try {
+    if (!admin.products || !admin.products.length) {
+      admin.products = await api('/admin/products');
+    }
+    const order = orderId ? await api(`/admin/orders/${orderId}`) : null;
+    renderOrderPanel(order);
+  } catch (e) {
+    body.innerHTML = `<p style="color:var(--color-danger)">${e.message}</p>`;
+  }
+}
+
+function renderOrderPanel(order) {
+  const body    = document.getElementById('edit-panel-body');
+  const saveBtn = document.getElementById('save-product-btn');
+  const isNew   = !order;
+  const canEdit = isNew || order.status === 'pending';
+
+  const v = {
+    section:      order?.section      || 'mayorista',
+    client_name:  order?.client_name  || '',
+    client_phone: order?.client_phone || '',
+    delivery:     order?.delivery     || 'retiro',
+    address:      order?.address      || '',
+    comprobante:  order?.comprobante  || 'Consumidor Final A',
+    notes:        order?.notes        || '',
+  };
+
+  const statusBadge = !isNew && !canEdit
+    ? `<div style="margin-bottom:12px">
+         <span class="badge ${STATUS_BADGE[order.status]}" style="font-size:13px;padding:6px 12px">
+           ${STATUS_LABEL[order.status]}
+           ${order.confirmed_at ? ' — ' + new Date(order.confirmed_at).toLocaleDateString('es-AR') : ''}
+         </span>
+       </div>`
+    : '';
+
+  const disabledAttr = canEdit ? '' : 'disabled';
+  const readonlyAttr = canEdit ? '' : 'readonly';
+
+  const comprobanteOptions = ['Consumidor Final A','Monotributo A','Responsable Inscripto B','IVA Exento']
+    .map(c => `<option ${v.comprobante === c ? 'selected' : ''}>${escapeHtml(c)}</option>`)
+    .join('');
+
+  const itemsHtml = (order?.items || [])
+    .map((item, i) => renderItemRow(item, i, canEdit))
+    .join('') || '<p style="color:var(--color-text-muted);font-size:13px;padding:8px 0">Sin ítems</p>';
+
+  body.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:16px;padding-bottom:16px">
+      ${statusBadge}
+
+      <div>
+        <div class="form-group">
+          <label class="form-label">Lista de precios</label>
+          <select id="op-section" class="form-control" ${disabledAttr}>
+            <option value="mayorista"   ${v.section==='mayorista'   ?'selected':''}>Mayorista</option>
+            <option value="profesional" ${v.section==='profesional' ?'selected':''}>Profesional</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nombre del cliente *</label>
+          <input type="text" id="op-name" class="form-control" value="${escapeHtml(v.client_name)}" ${readonlyAttr}>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Teléfono *</label>
+          <input type="text" id="op-phone" class="form-control" value="${escapeHtml(v.client_phone)}" ${readonlyAttr}>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Comprobante</label>
+          <select id="op-comprobante" class="form-control" ${disabledAttr}>
+            ${comprobanteOptions}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Entrega</label>
+          <select id="op-delivery" class="form-control" ${disabledAttr}>
+            <option value="retiro"   ${v.delivery==='retiro'   ?'selected':''}>Retiro en sucursal</option>
+            <option value="andreani" ${v.delivery==='andreani' ?'selected':''}>Andreani</option>
+          </select>
+        </div>
+        <div class="form-group" id="op-address-group" style="display:${v.delivery==='andreani'?'block':'none'}">
+          <label class="form-label">Dirección</label>
+          <input type="text" id="op-address" class="form-control" value="${escapeHtml(v.address)}" ${readonlyAttr}>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Notas</label>
+          <textarea id="op-notes" class="form-control" rows="2" ${readonlyAttr}>${escapeHtml(v.notes)}</textarea>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>Ítems del pedido</strong>
+          ${canEdit ? '<button class="btn btn-ghost btn-sm" id="btn-add-item">+ Agregar ítem</button>' : ''}
+        </div>
+        <div id="op-items-list">${itemsHtml}</div>
+        <div style="text-align:right;margin-top:10px;font-weight:700;font-size:15px">
+          Total: <span id="op-total">${fmtPrice(order?.total || 0)}</span>
+        </div>
+      </div>
+
+      ${canEdit && !isNew ? `
+        <div id="op-action-error" style="display:none;color:var(--color-danger);font-size:13px;padding:8px;background:rgba(239,68,68,0.08);border-radius:6px"></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" style="background:#16a34a;color:#fff;flex:1" id="btn-confirm-order">✓ Confirmar</button>
+          <button class="btn btn-sm" style="background:var(--color-danger);color:#fff;flex:1" id="btn-cancel-order">✕ Cancelar</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  // Toggle dirección cuando cambia entrega
+  document.getElementById('op-delivery')?.addEventListener('change', e => {
+    document.getElementById('op-address-group').style.display =
+      e.target.value === 'andreani' ? 'block' : 'none';
+  });
+
+  // Agregar ítem
+  document.getElementById('btn-add-item')?.addEventListener('click', () => {
+    const list = document.getElementById('op-items-list');
+    const empty = list.querySelector('p');
+    if (empty) empty.remove();
+    const idx = list.querySelectorAll('.op-item-row').length;
+    const div = document.createElement('div');
+    div.innerHTML = renderItemRow({}, idx, true);
+    const row = div.firstElementChild;
+    list.appendChild(row);
+    bindItemRow(row);
+    recalcTotal();
+  });
+
+  // Bind rows existentes
+  document.querySelectorAll('.op-item-row').forEach(row => bindItemRow(row));
+  recalcTotal();
+
+  // Save button
+  saveBtn.style.display = canEdit ? 'inline-flex' : 'none';
+  saveBtn.textContent = isNew ? 'Crear pedido' : 'Guardar cambios';
+  saveBtn.onclick = () => saveOrder(order?.id || null);
+
+  // Confirm / Cancel
+  if (!isNew && canEdit) {
+    document.getElementById('btn-confirm-order')?.addEventListener('click', () => confirmOrder(order.id));
+    document.getElementById('btn-cancel-order')?.addEventListener('click',  () => cancelOrder(order.id));
+  }
+}
+
+function renderItemRow(item, idx, editable) {
+  const productOptions = (admin.products || [])
+    .map(p => `<option value="${p.id}" data-price="${p.price_mayo}" ${item.product_id === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`)
+    .join('');
+
+  if (!editable) {
+    return `
+      <div class="op-item-row" style="display:grid;grid-template-columns:1fr auto auto auto;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--color-border)">
+        <span>${escapeHtml(item.product_name)}${item.color_name ? ` <small style="color:var(--color-text-muted)">(${escapeHtml(item.color_name)})</small>` : ''}</span>
+        <span style="color:var(--color-text-muted)">×${item.quantity}</span>
+        <span>${fmtPrice(item.unit_price)}</span>
+        <span style="font-weight:600">${fmtPrice(item.subtotal)}</span>
+      </div>`;
+  }
+
+  return `
+    <div class="op-item-row" style="display:grid;grid-template-columns:1fr 80px 100px 80px auto;gap:6px;align-items:start;padding:6px 0;border-bottom:1px solid var(--color-border)">
+      <div>
+        <select class="form-control item-product" style="margin-bottom:4px">
+          <option value="">— Producto —</option>
+          ${productOptions}
+        </select>
+        <input type="text" class="form-control item-color" placeholder="Color / variante" value="${escapeHtml(item.color_name || '')}">
+      </div>
+      <input type="number" class="form-control item-qty"   min="1" value="${item.quantity   || 1}" style="width:100%">
+      <input type="number" class="form-control item-price" min="0" value="${item.unit_price || 0}" style="width:100%">
+      <span class="item-subtotal" style="font-weight:600;text-align:right;padding-top:8px">${fmtPrice((item.quantity || 1) * (item.unit_price || 0))}</span>
+      <button class="btn btn-ghost btn-sm btn-remove-item" style="padding:4px 8px" title="Quitar">✕</button>
+    </div>`;
+}
+
+function bindItemRow(row) {
+  row.querySelector('.item-product')?.addEventListener('change', e => {
+    const price = parseInt(e.target.selectedOptions[0]?.dataset?.price) || 0;
+    row.querySelector('.item-price').value = price;
+    recalcTotal();
+  });
+  row.querySelector('.item-qty')  ?.addEventListener('input', recalcTotal);
+  row.querySelector('.item-price')?.addEventListener('input', recalcTotal);
+  row.querySelector('.btn-remove-item')?.addEventListener('click', () => {
+    row.remove();
+    recalcTotal();
+  });
+}
+
+function recalcTotal() {
+  let total = 0;
+  document.querySelectorAll('.op-item-row').forEach(row => {
+    const qty   = parseInt(row.querySelector('.item-qty')  ?.value) || 0;
+    const price = parseInt(row.querySelector('.item-price')?.value) || 0;
+    const sub   = qty * price;
+    total += sub;
+    const subEl = row.querySelector('.item-subtotal');
+    if (subEl) subEl.textContent = fmtPrice(sub);
+  });
+  const totalEl = document.getElementById('op-total');
+  if (totalEl) totalEl.textContent = fmtPrice(total);
+}
+
+function collectOrderData() {
+  const items = [];
+  document.querySelectorAll('.op-item-row').forEach(row => {
+    const productSelect = row.querySelector('.item-product');
+    if (!productSelect) return; // fila de solo lectura
+    const productId   = parseInt(productSelect.value) || null;
+    const productName = productSelect.selectedOptions[0]?.text?.replace('— Producto —', '').trim() || '';
+    const colorName   = row.querySelector('.item-color') ?.value?.trim() || '';
+    const quantity    = parseInt(row.querySelector('.item-qty')  ?.value) || 1;
+    const unitPrice   = parseInt(row.querySelector('.item-price')?.value) || 0;
+    if (!productId && !productName) return;
+    items.push({ product_id: productId, product_name: productName, color_name: colorName, quantity, unit_price: unitPrice });
+  });
+
+  return {
+    section:      document.getElementById('op-section')     ?.value?.trim() || 'mayorista',
+    client_name:  document.getElementById('op-name')        ?.value?.trim() || '',
+    client_phone: document.getElementById('op-phone')       ?.value?.trim() || '',
+    delivery:     document.getElementById('op-delivery')    ?.value         || 'retiro',
+    address:      document.getElementById('op-address')     ?.value?.trim() || '',
+    comprobante:  document.getElementById('op-comprobante') ?.value         || '',
+    notes:        document.getElementById('op-notes')       ?.value?.trim() || '',
+    items,
+  };
+}
+
+async function saveOrder(orderId) {
+  const data = collectOrderData();
+  if (!data.client_name)   { toast('Ingresá el nombre del cliente', 'error'); return; }
+  if (!data.items.length)  { toast('Agregá al menos un ítem al pedido', 'error'); return; }
+
+  try {
+    if (orderId) {
+      await api(`/admin/orders/${orderId}`,       { method: 'PUT', body: data });
+      await api(`/admin/orders/${orderId}/items`, { method: 'PUT', body: { items: data.items } });
+      toast('Pedido actualizado');
+    } else {
+      const created = await api('/admin/orders', { method: 'POST', body: data });
+      toast('Pedido creado');
+      await openOrderPanel(created.id);
+    }
+    await loadOrders();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function confirmOrder(orderId) {
+  const errEl = document.getElementById('op-action-error');
+  if (errEl) errEl.style.display = 'none';
+
+  try {
+    // Guardar cambios pendientes antes de confirmar
+    const data = collectOrderData();
+    if (data.items.length) {
+      await api(`/admin/orders/${orderId}`,       { method: 'PUT', body: data });
+      await api(`/admin/orders/${orderId}/items`, { method: 'PUT', body: { items: data.items } });
+    }
+    await api(`/admin/orders/${orderId}/confirm`, { method: 'POST' });
+    toast('Pedido confirmado ✓', 'success');
+    document.getElementById('edit-panel') ?.classList.remove('open');
+    document.getElementById('panel-overlay')?.classList.remove('visible');
+    await loadOrders();
+  } catch (e) {
+    if (errEl) {
+      errEl.textContent = e.message.includes('Stock insuficiente')
+        ? 'Stock insuficiente en uno o más productos — editá las cantidades antes de confirmar.'
+        : e.message;
+      errEl.style.display = 'block';
+    } else {
+      toast(e.message, 'error');
+    }
+  }
+}
+
+async function cancelOrder(orderId) {
+  if (!confirm('¿Cancelar este pedido?')) return;
+  try {
+    await api(`/admin/orders/${orderId}/cancel`, { method: 'POST' });
+    toast('Pedido cancelado');
+    document.getElementById('edit-panel')   ?.classList.remove('open');
+    document.getElementById('panel-overlay')?.classList.remove('visible');
+    await loadOrders();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
 }
