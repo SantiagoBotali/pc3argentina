@@ -249,6 +249,65 @@ router.post('/orders', async (req, res) => {
 
 // ─── ADMIN ROUTES ───────────────────────────────────────────────
 
+// ─── Orders admin ───────────────────────────────────────────────
+
+router.get('/admin/orders', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { status, section, search, from, to } = req.query;
+
+    const where = [];
+    const params = [];
+
+    if (status && ['pending', 'confirmed', 'cancelled'].includes(status)) {
+      params.push(status);
+      where.push(`status = $${params.length}`);
+    }
+    if (section && ['profesional', 'mayorista'].includes(section)) {
+      params.push(section);
+      where.push(`section = $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      const n = params.length;
+      where.push(`(client_name ILIKE $${n} OR client_phone ILIKE $${n})`);
+    }
+    if (from) {
+      params.push(from);
+      where.push(`created_at >= $${params.length}`);
+    }
+    if (to) {
+      params.push(to);
+      where.push(`created_at <= $${params.length}`);
+    }
+
+    const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const orders = await db.query(
+      `SELECT * FROM orders ${whereClause}
+       ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, created_at DESC`,
+      params
+    );
+
+    res.json(orders);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/admin/orders', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { items = [] } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items requerido' });
+    }
+    const orderId = await createOrder(db, req.body);
+    res.status(201).json(await getOrderFull(db, orderId));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/admin/products', requireAdmin, async (req, res) => {
   try {
     const db = getDb();
