@@ -570,3 +570,7 @@
   .edit-panel { width: 100%; right: -100%; }
   .stock-modal { max-width: calc(100vw - 32px); }
 }
+
+/* ─── Orders ────────────────────────────────────────────────── */
+.order-row-pending td { background: color-mix(in srgb, #f59e0b 6%, transparent); }
+.order-row-pending:hover td { background: color-mix(in srgb, #f59e0b 12%, transparent); }

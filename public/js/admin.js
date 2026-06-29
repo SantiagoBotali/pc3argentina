@@ -60,10 +60,11 @@ function navigate(page) {
   admin.currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
 
-  const titles = { products: 'Productos', colors: 'Paleta de colores', settings: 'Configuración', password: 'Cambiar Contraseña' };
+  const titles = { products: 'Productos', orders: 'Pedidos', colors: 'Paleta de colores', settings: 'Configuración', password: 'Cambiar Contraseña' };
   document.getElementById('page-title').textContent = titles[page] || page;
 
   if (page === 'products') renderProductsPage();
+  else if (page === 'orders') renderOrdersPage();
   else if (page === 'colors') renderColorsPage();
   else if (page === 'settings') renderSettingsPage();
   else if (page === 'password') renderPasswordPage();
