@@ -100,6 +100,70 @@ const CACHE_TTL_MS = 30_000; // 30 seconds
 
 function invalidateCache() { catalogCache.data = null; catalogCache.expiresAt = 0; }
 
+// ─── Order helpers ──────────────────────────────────────────────
+
+async function createOrder(db, body) {
+  const {
+    section      = '',
+    client_name  = '',
+    client_phone = '',
+    delivery     = 'retiro',
+    address      = '',
+    comprobante  = '',
+    notes        = '',
+    items        = [],
+  } = body;
+
+  const safeItems = items
+    .map(i => ({
+      product_id:   parseInt(i.product_id) || null,
+      product_name: String(i.product_name || '').trim(),
+      color_name:   String(i.color_name   || '').trim(),
+      quantity:     Math.max(1, parseInt(i.quantity)   || 1),
+      unit_price:   Math.max(0, parseInt(i.unit_price) || 0),
+    }))
+    .filter(i => i.product_name || i.product_id);
+
+  const total = safeItems.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const orderRes = await client.query(
+      `INSERT INTO orders (status, section, client_name, client_phone, delivery, address, comprobante, notes, total)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      ['pending', section, client_name, client_phone, delivery, address, comprobante, notes, total]
+    );
+    const orderId = orderRes.rows[0].id;
+
+    for (const item of safeItems) {
+      const subtotal = item.unit_price * item.quantity;
+      await client.query(
+        `INSERT INTO order_items (order_id, product_id, product_name, color_name, quantity, unit_price, subtotal)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [orderId, item.product_id, item.product_name, item.color_name, item.quantity, item.unit_price, subtotal]
+      );
+    }
+
+    await client.query('COMMIT');
+    return orderId;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function getOrderFull(db, id) {
+  const order = await db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id);
+  if (!order) return null;
+  order.items = await db.prepare(
+    `SELECT * FROM order_items WHERE order_id = ? ORDER BY id`
+  ).all(id);
+  return order;
+}
+
 // ─── PUBLIC ROUTES ──────────────────────────────────────────────
 
 router.get('/products', async (req, res) => {
@@ -164,6 +228,20 @@ router.post('/validate-stock', async (req, res) => {
       }
     }
     res.json({ valid: issues.length === 0, issues });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.post('/orders', async (req, res) => {
+  try {
+    const db = getDb();
+    const { items = [] } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items requerido' });
+    }
+    const orderId = await createOrder(db, req.body);
+    res.status(201).json(await getOrderFull(db, orderId));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
