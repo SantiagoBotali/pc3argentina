@@ -372,6 +372,20 @@ body.section-mayorista   #cart-btn-pro  { display: none; }
   margin-bottom: 14px;
 }
 
+.section-card-icon-img {
+  height: 62px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.section-card.active .section-card-icon-img {
+  opacity: 1;
+}
+
 .section-card-icon svg {
   height: 42px;
   width: auto;
@@ -864,7 +878,7 @@ body.section-mayorista   #cart-btn-pro  { display: none; }
 .row-price-detail-public .row-price-detail-val {
   font-size: 13px;
   font-weight: 800;
-  color: var(--color-accent);
+  color: #ffffff;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1255,7 +1269,7 @@ body.section-mayorista   #cart-btn-pro  { display: none; }
 .pv-price-detail-public .pv-price-detail-val {
   font-size: 15px;
   font-weight: 800;
-  color: var(--color-accent);
+  color: #ffffff;
   font-variant-numeric: tabular-nums;
 }
 

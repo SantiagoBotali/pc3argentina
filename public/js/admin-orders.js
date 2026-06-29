@@ -103,6 +103,12 @@ function renderOrdersTable(wrap) {
     const sectionLabel= SECTION_LABEL[o.section]|| o.section;
     const date = new Date(o.created_at).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
     const isPending = o.status === 'pending';
+    const confirmCells = isPending
+      ? `<td style="white-space:nowrap">
+           <button class="btn btn-sm" style="background:#16a34a;color:#fff;margin-right:4px" onclick="confirmOrderInline(${o.id}, this)">✓ Confirmar</button>
+           <button class="btn btn-sm" style="background:var(--color-danger);color:#fff" onclick="cancelOrderInline(${o.id}, this)">✕ Cancelar</button>
+         </td>`
+      : `<td></td>`;
     return `
       <tr class="${isPending ? 'order-row-pending' : ''}">
         <td style="font-weight:700">#${o.id}</td>
@@ -114,6 +120,7 @@ function renderOrdersTable(wrap) {
         <td style="font-weight:600">${fmtPrice(o.total)}</td>
         <td><span class="badge ${badgeClass}">${statusLabel}</span></td>
         <td>${date}</td>
+        ${confirmCells}
         <td><button class="btn btn-ghost btn-sm" onclick="openOrderPanel(${o.id})">Ver / Editar</button></td>
       </tr>
     `;
@@ -124,7 +131,7 @@ function renderOrdersTable(wrap) {
       <table class="admin-table" style="width:100%">
         <thead>
           <tr>
-            <th>#</th><th>Cliente</th><th>Lista</th><th>Total</th><th>Estado</th><th>Fecha</th><th></th>
+            <th>#</th><th>Cliente</th><th>Lista</th><th>Total</th><th>Estado</th><th>Fecha</th><th>Confirmación</th><th>Acciones</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -249,13 +256,6 @@ function renderOrderPanel(order) {
         </div>
       </div>
 
-      ${canEdit && !isNew ? `
-        <div id="op-action-error" style="display:none;color:var(--color-danger);font-size:13px;padding:8px;background:rgba(239,68,68,0.08);border-radius:6px"></div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-sm" style="background:#16a34a;color:#fff;flex:1" id="btn-confirm-order">✓ Confirmar</button>
-          <button class="btn btn-sm" style="background:var(--color-danger);color:#fff;flex:1" id="btn-cancel-order">✕ Cancelar</button>
-        </div>
-      ` : ''}
     </div>
   `;
 
@@ -288,11 +288,6 @@ function renderOrderPanel(order) {
   saveBtn.textContent = isNew ? 'Crear pedido' : 'Guardar cambios';
   saveBtn.onclick = () => saveOrder(order?.id || null);
 
-  // Confirm / Cancel
-  if (!isNew && canEdit) {
-    document.getElementById('btn-confirm-order')?.addEventListener('click', () => confirmOrder(order.id));
-    document.getElementById('btn-cancel-order')?.addEventListener('click',  () => cancelOrder(order.id));
-  }
 }
 
 function renderItemRow(item, idx, editable) {
@@ -402,30 +397,16 @@ async function saveOrder(orderId) {
 }
 
 async function confirmOrder(orderId) {
-  const errEl = document.getElementById('op-action-error');
-  if (errEl) errEl.style.display = 'none';
-
   try {
-    // Guardar cambios pendientes antes de confirmar
-    const data = collectOrderData();
-    if (data.items.length) {
-      await api(`/admin/orders/${orderId}`,       { method: 'PUT', body: data });
-      await api(`/admin/orders/${orderId}/items`, { method: 'PUT', body: { items: data.items } });
-    }
     await api(`/admin/orders/${orderId}/confirm`, { method: 'POST' });
     toast('Pedido confirmado ✓', 'success');
-    document.getElementById('edit-panel') ?.classList.remove('open');
+    document.getElementById('edit-panel')   ?.classList.remove('open');
     document.getElementById('panel-overlay')?.classList.remove('visible');
     await loadOrders();
   } catch (e) {
-    if (errEl) {
-      errEl.textContent = e.message.includes('Stock insuficiente')
-        ? 'Stock insuficiente en uno o más productos — editá las cantidades antes de confirmar.'
-        : e.message;
-      errEl.style.display = 'block';
-    } else {
-      toast(e.message, 'error');
-    }
+    toast(e.message.includes('Stock insuficiente')
+      ? 'Stock insuficiente en uno o más productos.'
+      : e.message, 'error');
   }
 }
 
@@ -439,5 +420,24 @@ async function cancelOrder(orderId) {
     await loadOrders();
   } catch (e) {
     toast(e.message, 'error');
+  }
+}
+
+async function confirmOrderInline(orderId, btn) {
+  btn.disabled = true;
+  await confirmOrder(orderId);
+  btn.disabled = false;
+}
+
+async function cancelOrderInline(orderId, btn) {
+  if (!confirm('¿Cancelar este pedido?')) return;
+  btn.disabled = true;
+  try {
+    await api(`/admin/orders/${orderId}/cancel`, { method: 'POST' });
+    toast('Pedido cancelado');
+    await loadOrders();
+  } catch (e) {
+    toast(e.message, 'error');
+    btn.disabled = false;
   }
 }
