@@ -104,14 +104,19 @@ function invalidateCache() { catalogCache.data = null; catalogCache.expiresAt = 
 
 async function createOrder(db, body) {
   const {
-    section      = '',
-    client_name  = '',
-    client_phone = '',
-    delivery     = 'retiro',
-    address      = '',
-    comprobante  = '',
-    notes        = '',
-    items        = [],
+    section           = '',
+    client_name       = '',
+    client_club       = '',
+    client_dni        = '',
+    client_cuit       = '',
+    client_phone      = '',
+    client_email      = '',
+    address           = '',
+    client_localidad  = '',
+    delivery          = 'retiro',
+    comprobante       = '',
+    notes             = '',
+    items             = [],
   } = body;
 
   const safeItems = items
@@ -130,9 +135,9 @@ async function createOrder(db, body) {
   try {
     await client.query('BEGIN');
     const orderRes = await client.query(
-      `INSERT INTO orders (status, section, client_name, client_phone, delivery, address, comprobante, notes, total)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      ['pending', section, client_name, client_phone, delivery, address, comprobante, notes, total]
+      `INSERT INTO orders (status, section, client_name, client_club, client_dni, client_cuit, client_phone, client_email, address, client_localidad, delivery, comprobante, notes, total)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      ['pending', section, client_name, client_club, client_dni, client_cuit, client_phone, client_email, address, client_localidad, delivery, comprobante, notes, total]
     );
     const orderId = orderRes.rows[0].id;
 
@@ -270,7 +275,7 @@ router.get('/admin/orders', requireAdmin, async (req, res) => {
     if (search) {
       params.push(`%${search}%`);
       const n = params.length;
-      where.push(`(client_name ILIKE $${n} OR client_phone ILIKE $${n})`);
+      where.push(`(client_name ILIKE $${n} OR client_phone ILIKE $${n} OR client_email ILIKE $${n} OR client_dni ILIKE $${n})`);
     }
     if (from) {
       params.push(from);
@@ -329,21 +334,27 @@ router.put('/admin/orders/:id', requireAdmin, async (req, res) => {
     }
 
     const {
-      section      = order.section,
-      client_name  = order.client_name,
-      client_phone = order.client_phone,
-      delivery     = order.delivery,
-      address      = order.address,
-      comprobante  = order.comprobante,
-      notes        = order.notes,
+      section          = order.section,
+      client_name      = order.client_name,
+      client_club      = order.client_club      || '',
+      client_dni       = order.client_dni       || '',
+      client_cuit      = order.client_cuit      || '',
+      client_phone     = order.client_phone,
+      client_email     = order.client_email     || '',
+      address          = order.address,
+      client_localidad = order.client_localidad || '',
+      delivery         = order.delivery,
+      comprobante      = order.comprobante,
+      notes            = order.notes,
     } = req.body;
 
     await db.prepare(`
       UPDATE orders SET
-        section = ?, client_name = ?, client_phone = ?,
-        delivery = ?, address = ?, comprobante = ?, notes = ?
+        section = ?, client_name = ?, client_club = ?, client_dni = ?, client_cuit = ?,
+        client_phone = ?, client_email = ?, address = ?, client_localidad = ?,
+        delivery = ?, comprobante = ?, notes = ?
       WHERE id = ?
-    `).run(section, client_name, client_phone, delivery, address, comprobante, notes, req.params.id);
+    `).run(section, client_name, client_club, client_dni, client_cuit, client_phone, client_email, address, client_localidad, delivery, comprobante, notes, req.params.id);
 
     res.json(await getOrderFull(db, req.params.id));
   } catch (e) {

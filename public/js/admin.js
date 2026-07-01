@@ -97,8 +97,9 @@ async function renderProductsPage() {
           <tr>
             <th>Imagen</th>
             <th>Nombre / Slug</th>
-            <th>Precio Pro</th>
             <th>Precio Mayo</th>
+            <th>Precio MaPro</th>
+            <th>Precio Público</th>
             <th>Stock</th>
             <th>Activo</th>
             <th>Acciones</th>
@@ -137,6 +138,7 @@ function buildProductRow(p) {
     </td>
     <td>${fmtPrice(p.price_pro)}</td>
     <td>${fmtPrice(p.price_mayo)}</td>
+    <td>${fmtPrice(p.price_public)}</td>
     <td>
       <div style="display:flex;align-items:center;gap:8px">
         ${hasVariants
@@ -269,11 +271,11 @@ function buildEditForm(p) {
 
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
       <div class="form-group">
-        <label class="form-label">Precio Profesional</label>
+        <label class="form-label">Precio Mayorista</label>
         <input type="number" class="form-control" id="ef-price-pro" value="${p?.price_pro || ''}" placeholder="3500" min="0">
       </div>
       <div class="form-group">
-        <label class="form-label">Precio Mayorista</label>
+        <label class="form-label">Precio MaPro</label>
         <input type="number" class="form-control" id="ef-price-mayo" value="${p?.price_mayo || ''}" placeholder="1450" min="0">
       </div>
       <div class="form-group">

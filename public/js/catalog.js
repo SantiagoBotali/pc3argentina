@@ -95,24 +95,26 @@ function setupTheme() {
 }
 
 // ─── Section Tabs ─────────────────────────────────────────────
+function switchToSection(section) {
+  if (section === state.activeSection) return;
+  state.activeSection = section;
+
+  document.querySelectorAll('.section-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.section === section);
+  });
+
+  document.body.classList.remove('section-profesional', 'section-mayorista');
+  document.body.classList.add(`section-${section}`);
+
+  renderProductList();
+  updateCartUI();
+  updateSectionInfo();
+  updateLogo();
+}
+
 function setupSectionTabs() {
   document.querySelectorAll('.section-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const section = card.dataset.section;
-      if (section === state.activeSection) return;
-      state.activeSection = section;
-
-      document.querySelectorAll('.section-card').forEach(c => c.classList.remove('active'));
-      card.classList.add('active');
-
-      document.body.classList.remove('section-profesional', 'section-mayorista');
-      document.body.classList.add(`section-${section}`);
-
-      renderProductList();
-      updateCartUI();
-      updateSectionInfo();
-      updateLogo();
-    });
+    card.addEventListener('click', () => switchToSection(card.dataset.section));
   });
 }
 
@@ -136,25 +138,24 @@ function setupFabs() {
     waFab.href = `https://wa.me/${state.settings.whatsapp_number}`;
   }
 
-  document.getElementById('fab-cart-pro')?.addEventListener('click', () => {
-    state.activeCartTab = 'profesional';
+  const onFabClick = (section) => {
+    if (section !== state.activeSection) {
+      // Inactive FAB: just swap the list, don't open the sidebar
+      switchToSection(section);
+      return;
+    }
+    // Active FAB: open the cart sidebar
     const sidebar = document.getElementById('cart-sidebar');
     const overlay = document.getElementById('cart-overlay');
     if (sidebar) { sidebar.classList.add('open'); document.body.style.overflow = 'hidden'; }
     if (overlay) overlay.classList.add('visible');
+    state.activeCartTab = section;
     updateCartTabUI();
-    renderCartSidebar('profesional');
-  });
+    renderCartSidebar(section);
+  };
 
-  document.getElementById('fab-cart-mayo')?.addEventListener('click', () => {
-    state.activeCartTab = 'mayorista';
-    const sidebar = document.getElementById('cart-sidebar');
-    const overlay = document.getElementById('cart-overlay');
-    if (sidebar) { sidebar.classList.add('open'); document.body.style.overflow = 'hidden'; }
-    if (overlay) overlay.classList.add('visible');
-    updateCartTabUI();
-    renderCartSidebar('mayorista');
-  });
+  document.getElementById('fab-cart-pro')?.addEventListener('click',  () => onFabClick('profesional'));
+  document.getElementById('fab-cart-mayo')?.addEventListener('click', () => onFabClick('mayorista'));
 }
 
 window.updateFabCart = function() {
@@ -173,6 +174,7 @@ window.updateFabCart = function() {
   mayoFab.classList.toggle('fab-active', section === 'mayorista');
 
   const updateFabInfo = (s, badgeId, subId) => {
+    const isActive = s === section;
     const items = Object.values(state.carts[s] || {});
     const count = items.reduce((sum, i) => sum + i.quantity, 0);
     const badge = document.getElementById(badgeId);
@@ -182,7 +184,10 @@ window.updateFabCart = function() {
       badge.textContent = count;
     }
     if (sub) {
-      if (count === 0) {
+      if (!isActive) {
+        // Inactive FAB: hint that clicking switches the list
+        sub.textContent = count === 0 ? 'Cambiar lista' : `Cambiar · ${count} items`;
+      } else if (count === 0) {
         sub.textContent = 'Vacío';
       } else {
         const total = items.reduce((sum, item) => {
@@ -326,12 +331,6 @@ window.openPreview = function(productId) {
     </div>
   `;
 
-  const stockBadge = product.stock === 0
-    ? `<span class="pv-stock-badge pv-stock-out">Sin stock</span>`
-    : product.stock <= 5
-      ? `<span class="pv-stock-badge pv-stock-low">Stock: ${product.stock}</span>`
-      : '';
-
   content.innerHTML = `
     <div class="pv-gallery">
       <div class="pv-slides" id="pv-slides">${slidesHtml}</div>
@@ -341,7 +340,6 @@ window.openPreview = function(productId) {
     <div class="pv-info">
       <div class="pv-title-row">
         <h2 class="pv-name">${product.name}</h2>
-        ${stockBadge}
       </div>
       ${product.contents ? `<div class="pv-contents">📦 ${product.contents}</div>` : ''}
       ${product.description ? `<div class="pv-description">${product.description}</div>` : ''}
@@ -351,19 +349,20 @@ window.openPreview = function(productId) {
       </div>
 
       <div class="pv-actions">
-        <div class="pv-qty-row">
+        <div class="pv-qty-row" style="position:relative">
           <button class="pv-qty-btn" id="pv-qty-minus">−</button>
           <input type="number" class="pv-qty-input" id="pv-qty-input" value="1" min="1" max="9999">
           <button class="pv-qty-btn" id="pv-qty-plus">+</button>
           <span class="pv-qty-unit">un</span>
         </div>
+        <div id="pv-stock-msg" style="font-size:11px;font-weight:600;min-height:16px;margin-top:4px"></div>
         <div class="pv-savings" id="pv-savings"></div>
-        <button class="pv-add-btn" id="pv-add-btn" data-product-id="${product.id}" ${product.stock === 0 ? 'disabled' : ''}>
+        <button class="pv-add-btn" id="pv-add-btn" data-product-id="${product.id}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
             <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
           </svg>
-          ${product.stock === 0 ? 'Sin stock' : 'Agregar al carrito'}
+          Agregar al carrito
         </button>
       </div>
     </div>
@@ -377,20 +376,63 @@ window.openPreview = function(productId) {
   const slides = content.querySelectorAll('.pv-slide');
   const dots = content.querySelectorAll('.pv-dot');
 
+  // Qty + add elements
+  const qtyInput  = content.querySelector('#pv-qty-input');
+  const savingsEl = content.querySelector('#pv-savings');
+  const addBtn    = content.querySelector('#pv-add-btn');
+  const stockMsg  = content.querySelector('#pv-stock-msg');
+  const pvQtyRow  = content.querySelector('.pv-qty-row');
+  const pvGallery = content.querySelector('.pv-gallery');
+
+  // Returns effective stock for the given slide index
+  const slideStock = (idx) => getVariantStock(product, idx);
+
+  // Update all UI that depends on the current slide's stock
+  const updateStockState = (idx) => {
+    const stock = slideStock(idx);
+    pvGallery?.classList.toggle('pv-gallery--out-of-stock', stock === 0);
+    const currentQty = parseInt(qtyInput.value) || 1;
+
+    // Clamp qty to available stock
+    if (stock > 0 && currentQty > stock) qtyInput.value = stock;
+
+    // Stock message (plain text, no badge)
+    if (stock === 0) {
+      stockMsg.textContent = 'Sin stock de este color';
+      stockMsg.style.color = 'var(--color-danger)';
+    } else if (stock < 20) {
+      stockMsg.textContent = 'Quedan pocas unidades de este color';
+      stockMsg.style.color = 'var(--color-warning)';
+    } else {
+      stockMsg.textContent = '';
+    }
+
+    // Disable add button and qty controls when out of stock
+    addBtn.disabled = stock === 0;
+    if (stock === 0) {
+      addBtn.innerHTML = 'Sin stock';
+    } else {
+      addBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg> Agregar al carrito`;
+    }
+    qtyInput.disabled = stock === 0;
+    content.querySelector('#pv-qty-minus').disabled = stock === 0;
+    content.querySelector('#pv-qty-plus').disabled  = stock === 0;
+  };
+
   const goTo = (idx) => {
     currentSlide = (idx + slides.length) % slides.length;
     slides.forEach((s, i) => s.classList.toggle('active', i === currentSlide));
     dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
+    updateStockState(currentSlide);
+    updateSavings();
   };
 
   content.querySelector('.pv-prev')?.addEventListener('click', () => goTo(currentSlide - 1));
   content.querySelector('.pv-next')?.addEventListener('click', () => goTo(currentSlide + 1));
   dots.forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
-
-  // Qty + add
-  const qtyInput = content.querySelector('#pv-qty-input');
-  const savingsEl = content.querySelector('#pv-savings');
-  const addBtn = content.querySelector('#pv-add-btn');
 
   const updateSavings = () => {
     const qty = parseInt(qtyInput.value) || 1;
@@ -403,13 +445,26 @@ window.openPreview = function(productId) {
     }
   };
 
-  qtyInput.addEventListener('input', updateSavings);
+  qtyInput.addEventListener('input', () => {
+    const stock = slideStock(currentSlide);
+    let qty = parseInt(qtyInput.value) || 1;
+    if (stock > 0 && qty > stock) { qtyInput.value = stock; qty = stock; }
+    updateSavings();
+  });
+
   content.querySelector('#pv-qty-minus')?.addEventListener('click', () => {
     qtyInput.value = Math.max(1, (parseInt(qtyInput.value) || 1) - 1);
     updateSavings();
   });
+
   content.querySelector('#pv-qty-plus')?.addEventListener('click', () => {
-    qtyInput.value = (parseInt(qtyInput.value) || 1) + 1;
+    const stock = slideStock(currentSlide);
+    const current = parseInt(qtyInput.value) || 1;
+    if (current >= stock) {
+      window.showStockTooltip(pvQtyRow);
+      return;
+    }
+    qtyInput.value = current + 1;
     updateSavings();
   });
 
@@ -419,6 +474,8 @@ window.openPreview = function(productId) {
     closePreview();
   });
 
+  // Apply initial state
+  updateStockState(0);
   updateSavings();
 };
 

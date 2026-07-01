@@ -149,6 +149,11 @@ async function init() {
   await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_name TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0`);
   await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_hex TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_club     TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_dni      TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_cuit     TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_localidad TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_email    TEXT NOT NULL DEFAULT ''`);
 
   // ── Seed default colors if table is empty ─────────────────────────
   const colorCount = await pool.query(`SELECT COUNT(*) FROM colors`);

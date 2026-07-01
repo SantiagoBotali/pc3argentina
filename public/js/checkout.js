@@ -1,6 +1,6 @@
 // ─── Checkout ─────────────────────────────────────────────────
 
-async function saveOrderToBackend(section, name, phone, delivery, address, comprobante) {
+async function saveOrderToBackend(section, data, delivery, comprobante) {
   const items = Object.values(state.carts[section] || {});
   const orderItems = items.map(item => {
     const product = state.products.find(p => p.id === item.productId);
@@ -23,12 +23,17 @@ async function saveOrderToBackend(section, name, phone, delivery, address, compr
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         section,
-        client_name:  name,
-        client_phone: phone,
+        client_name:      data.name,
+        client_club:      data.club       || '',
+        client_dni:       data.dni        || '',
+        client_cuit:      data.cuit       || '',
+        client_phone:     data.phone,
+        client_email:     data.email      || '',
+        address:          data.address    || '',
+        client_localidad: data.localidad  || '',
         delivery,
-        address:      address || '',
-        comprobante:  comprobante || 'Consumidor Final A',
-        items:        orderItems,
+        comprobante:      comprobante || 'Consumidor Final A',
+        items:            orderItems,
       }),
     });
   } catch (_) {
@@ -36,26 +41,13 @@ async function saveOrderToBackend(section, name, phone, delivery, address, compr
   }
 }
 
-window.openCheckout = async function(section) {
-  // Validate stock
+window.openCheckout = function(section) {
   const items = Object.values(state.carts[section] || {});
   if (items.length === 0) return;
-
-  let stockIssues = [];
-  try {
-    const res = await fetch('/api/validate-stock', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: items.map(i => ({ product_id: i.productId, variant_idx: i.variantIdx, quantity: i.quantity })) })
-    });
-    const data = await res.json();
-    if (!data.valid) stockIssues = data.issues || [];
-  } catch (e) { /* proceed */ }
-
-  renderCheckoutModal(section, stockIssues);
+  renderCheckoutModal(section);
 };
 
-function renderCheckoutModal(section, stockIssues) {
+function renderCheckoutModal(section) {
   const existingModal = document.getElementById('checkout-modal');
   if (existingModal) existingModal.remove();
 
@@ -78,16 +70,6 @@ function renderCheckoutModal(section, stockIssues) {
     `;
   }).join('');
 
-  // Stock warning
-  const stockWarningHtml = stockIssues.length
-    ? `<div class="checkout-stock-warning">
-         <div class="checkout-stock-warning-title">⚠ Stock insuficiente en algunos productos</div>
-         <ul class="checkout-stock-warning-list">
-           ${stockIssues.map(i => `<li>${i.name}: pedís ${i.requested}, disponibles ${i.available}</li>`).join('')}
-         </ul>
-         <p style="font-size:12px;color:var(--color-text-muted);margin-top:6px">Tu pedido se enviará con una nota indicando la falta de stock.</p>
-       </div>`
-    : '';
 
   const sectionLabel = section === 'profesional' ? 'Profesional' : 'Mayorista';
 
@@ -114,8 +96,6 @@ function renderCheckoutModal(section, stockIssues) {
             <span>TOTAL</span><span style="color:var(--color-accent)">${fmt(total)}</span>
           </div>
         </div>
-
-        ${stockWarningHtml}
 
         <div class="checkout-section-header" style="margin-top:16px">
           <h4>Tipo de comprobante</h4>
@@ -152,6 +132,37 @@ function renderCheckoutModal(section, stockIssues) {
         </div>
 
         <div class="form-group">
+          <label class="form-label">Club / Empresa / Consultorio <span style="color:var(--color-text-muted);font-weight:400">(opcional)</span></label>
+          <input type="text" id="checkout-club" class="form-control" placeholder="Ej: Club Atlético, Clínica Sur...">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">DNI *</label>
+            <input type="text" id="checkout-dni" class="form-control" placeholder="Ej: 30123456">
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">CUIT *</label>
+            <input type="text" id="checkout-cuit" class="form-control" placeholder="Ej: 20-30123456-4">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top:12px">
+          <label class="form-label">Dirección *</label>
+          <input type="text" id="checkout-address" class="form-control" placeholder="Calle, número, piso/dpto">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Localidad / Código postal *</label>
+          <input type="text" id="checkout-localidad" class="form-control" placeholder="Ej: Rafaela, 2300">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mail *</label>
+          <input type="email" id="checkout-email" class="form-control" placeholder="Ej: juan@mail.com">
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Teléfono *</label>
           <input type="tel" id="checkout-phone" class="form-control" placeholder="Ej: 3492 123456">
         </div>
@@ -172,11 +183,6 @@ function renderCheckoutModal(section, stockIssues) {
               <span class="delivery-option-desc">Envío a domicilio</span>
             </label>
           </div>
-        </div>
-
-        <div class="form-group" id="address-group" style="display:none">
-          <label class="form-label">Dirección de envío *</label>
-          <input type="text" id="checkout-address" class="form-control" placeholder="Calle, número, ciudad">
         </div>
 
         <div id="checkout-form-error" class="form-error" style="display:none;margin-bottom:12px"></div>
@@ -211,8 +217,6 @@ function renderCheckoutModal(section, stockIssues) {
       modal.querySelectorAll('input[name="delivery"]').forEach(r => r.closest('.delivery-option').classList.remove('selected'));
       opt.classList.add('selected');
       radio.checked = true;
-      const isAndreani = radio.value === 'andreani';
-      document.getElementById('address-group').style.display = isAndreani ? 'block' : 'none';
     });
   });
 
@@ -224,24 +228,33 @@ function renderCheckoutModal(section, stockIssues) {
 
   // Send WhatsApp
   document.getElementById('send-whatsapp-btn')?.addEventListener('click', () => {
-    sendWhatsApp(section, stockIssues);
+    sendWhatsApp(section);
   });
 }
 
-function sendWhatsApp(section, stockIssues) {
-  const name = document.getElementById('checkout-name')?.value.trim();
-  const phone = document.getElementById('checkout-phone')?.value.trim();
+function sendWhatsApp(section) {
+  const name      = document.getElementById('checkout-name')?.value.trim();
+  const club      = document.getElementById('checkout-club')?.value.trim();
+  const dni       = document.getElementById('checkout-dni')?.value.trim();
+  const cuit      = document.getElementById('checkout-cuit')?.value.trim();
+  const address   = document.getElementById('checkout-address')?.value.trim();
+  const localidad = document.getElementById('checkout-localidad')?.value.trim();
+  const email     = document.getElementById('checkout-email')?.value.trim();
+  const phone     = document.getElementById('checkout-phone')?.value.trim();
   const deliveryEl = document.querySelector('input[name="delivery"]:checked');
-  const delivery = deliveryEl?.value;
-  const address = document.getElementById('checkout-address')?.value.trim();
+  const delivery  = deliveryEl?.value;
   const comprobanteEl = document.querySelector('input[name="comprobante"]:checked');
   const comprobante = comprobanteEl?.value || 'Consumidor Final A';
 
   const errorEl = document.getElementById('checkout-form-error');
 
-  if (!name) { showError(errorEl, 'Ingresá tu nombre y apellido'); return; }
-  if (!phone) { showError(errorEl, 'Ingresá tu teléfono'); return; }
-  if (delivery === 'andreani' && !address) { showError(errorEl, 'Ingresá la dirección de envío'); return; }
+  if (!name)      { showError(errorEl, 'Ingresá tu nombre y apellido'); return; }
+  if (!dni)       { showError(errorEl, 'Ingresá tu DNI'); return; }
+  if (!cuit)      { showError(errorEl, 'Ingresá tu CUIT'); return; }
+  if (!address)   { showError(errorEl, 'Ingresá tu dirección'); return; }
+  if (!localidad) { showError(errorEl, 'Ingresá tu localidad o código postal'); return; }
+  if (!email)     { showError(errorEl, 'Ingresá tu mail'); return; }
+  if (!phone)     { showError(errorEl, 'Ingresá tu teléfono'); return; }
 
   errorEl.style.display = 'none';
 
@@ -275,20 +288,18 @@ function sendWhatsApp(section, stockIssues) {
 
   lines.push(`🧾 Comprobante: ${comprobante}`);
   lines.push(`👤 Nombre: ${name}`);
+  if (club) lines.push(`🏢 ${club}`);
+  lines.push(`🪪 DNI: ${dni}`);
+  lines.push(`📋 CUIT: ${cuit}`);
+  lines.push(`📍 Dirección: ${address}`);
+  lines.push(`🏙 Localidad: ${localidad}`);
+  lines.push(`📧 Mail: ${email}`);
   lines.push(`📱 Teléfono: ${phone}`);
 
   if (delivery === 'andreani') {
-    lines.push(`📦 Envío Andreani a: ${address}`);
+    lines.push(`📦 Envío: Andreani`);
   } else {
-    lines.push(`🏪 Retiro en sucursal`);
-  }
-
-  if (stockIssues && stockIssues.length > 0) {
-    lines.push('');
-    lines.push(`⚠️ *NOTA DE STOCK:*`);
-    for (const issue of stockIssues) {
-      lines.push(`  - ${issue.name}: pedido ${issue.requested} un, disponibles ${issue.available} — consultar si ingresa pronto`);
-    }
+    lines.push(`🏪 Entrega: Retiro en sucursal`);
   }
 
   const message = lines.join('\n');
@@ -296,7 +307,7 @@ function sendWhatsApp(section, stockIssues) {
   const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
 
   // Guardar pedido en backend — best-effort, no bloquea si falla
-  saveOrderToBackend(section, name, phone, delivery, address, comprobante);
+  saveOrderToBackend(section, { name, club, dni, cuit, phone, email, address, localidad }, delivery, comprobante);
 
   window.open(url, '_blank');
 

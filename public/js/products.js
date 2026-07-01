@@ -5,6 +5,21 @@ function productImgSrc(slug, filename) {
   return `/productos/${slug}/${filename}`;
 }
 
+// ─── Stock limit tooltip ──────────────────────────────────────
+let _tooltipTimer = null;
+window.showStockTooltip = function showStockTooltip(anchor) {
+  let tip = anchor.querySelector('.qty-limit-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.className = 'qty-limit-tooltip';
+    tip.textContent = 'No quedan más unidades disponibles';
+    anchor.appendChild(tip);
+  }
+  tip.classList.add('visible');
+  clearTimeout(_tooltipTimer);
+  _tooltipTimer = setTimeout(() => tip.classList.remove('visible'), 2000);
+};
+
 // ─── Price helpers ─────────────────────────────────────────────
 function getEffectivePrice(product, section, quantity) {
   const price = section === 'mayorista' ? product.price_mayo : product.price_pro;
@@ -60,16 +75,21 @@ function buildProductRow(product, section, rowNum) {
   const publicPrice   = product.price_public || 0;
   const showPublicRef = publicPrice > 0;
 
-  // Effective stock: use first variant's stock if set, else product-level stock
+  // Effective stock: use variant's stock if explicitly set (even 0), else product-level stock
   const firstImg0 = images[0];
-  const firstEffectiveStock = (firstImg0 && firstImg0.stock > 0) ? firstImg0.stock : product.stock;
+  const firstEffectiveStock = firstImg0?.stock != null ? firstImg0.stock : (product.stock || 0);
+
+  // Fully out of stock = every variant (or product itself if no variants) has 0 stock
+  const isFullyOutOfStock = images.length
+    ? images.every(img => (img.stock != null ? img.stock : (product.stock || 0)) === 0)
+    : (product.stock || 0) === 0;
 
   // Stock badge (updates dynamically when color is switched)
   function stockBadgeHtml(s) {
     return s === 0
-      ? `<span class="row-stock-badge row-stock-out">Sin stock</span>`
-      : s <= 5
-        ? `<span class="row-stock-badge row-stock-low">Stock: ${s}</span>`
+      ? `<span class="row-stock-badge row-stock-out">Sin stock de este color</span>`
+      : s < 20
+        ? `<span class="row-stock-badge row-stock-low">Quedan pocas unidades de este color</span>`
         : '';
   }
   const stockHtml = `<div class="js-stock-badge-wrap">${stockBadgeHtml(firstEffectiveStock)}</div>`;
@@ -87,7 +107,7 @@ function buildProductRow(product, section, rowNum) {
               data-swatch-idx="${i}"
               data-src="${productImgSrc(product.slug, img.filename)}"
               data-color-name="${label}"
-              data-stock="${img.stock || 0}"
+              data-stock="${img.stock != null ? img.stock : ''}"
               aria-label="${label}"
               title="${label}"
               style="background-color:${hex}">
@@ -99,7 +119,7 @@ function buildProductRow(product, section, rowNum) {
     : '';
 
   return `
-<div class="product-row" data-id="${product.id}" data-section="${section}">
+<div class="product-row${isFullyOutOfStock ? ' product-row--out-of-stock' : ''}" data-id="${product.id}" data-section="${section}">
 
   <div class="row-num">${rowNum}</div>
 
@@ -123,7 +143,6 @@ function buildProductRow(product, section, rowNum) {
     ${product.contents    ? `<div class="row-contents">${product.contents}</div>`         : ''}
     ${product.description ? `<div class="row-description">${product.description}</div>`  : ''}
     ${swatchesHtml}
-    ${stockHtml}
     <button class="row-detail-link js-detail-link" data-preview-id="${product.id}">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -152,7 +171,7 @@ function buildProductRow(product, section, rowNum) {
       <input type="number" class="qty-input js-qty" min="0" max="9999" value="${currentQty}" data-product-id="${product.id}">
       <button class="qty-step-btn js-qty-plus" aria-label="Más">+</button>
     </div>
-    <div class="row-stock-warn js-stock-warning"></div>
+    ${stockHtml}
   </div>
 
 </div>`;
@@ -165,8 +184,7 @@ function setupRowInteractions(row) {
   const product   = state.products.find(p => p.id === productId);
   if (!product) return;
 
-  const qtyInput      = row.querySelector('.js-qty');
-  const stockWarn     = row.querySelector('.js-stock-warning');
+  const qtyInput       = row.querySelector('.js-qty');
   const stockBadgeWrap = row.querySelector('.js-stock-badge-wrap');
   const minusBtn      = row.querySelector('.js-qty-minus');
   const plusBtn       = row.querySelector('.js-qty-plus');
@@ -176,16 +194,17 @@ function setupRowInteractions(row) {
   let selectedVariantIdx = 0;
   const mainImg = row.querySelector('.js-main-img');
 
-  // Effective stock for the currently selected variant
+  // Effective stock for the currently selected variant.
+  // Use variant's own stock when explicitly set (even 0); fall back to product.stock only when null.
   const firstImage = product.images && product.images[0];
-  let effectiveStock = (firstImage && firstImage.stock > 0) ? firstImage.stock : product.stock;
+  let effectiveStock = firstImage?.stock != null ? firstImage.stock : (product.stock || 0);
 
   function renderStockBadge(s) {
     if (!stockBadgeWrap) return;
     stockBadgeWrap.innerHTML = s === 0
-      ? `<span class="row-stock-badge row-stock-out">Sin stock</span>`
-      : s <= 5
-        ? `<span class="row-stock-badge row-stock-low">Stock: ${s}</span>`
+      ? `<span class="row-stock-badge row-stock-out">Sin stock de este color</span>`
+      : s < 20
+        ? `<span class="row-stock-badge row-stock-low">Quedan pocas unidades de este color</span>`
         : '';
   }
 
@@ -207,10 +226,13 @@ function setupRowInteractions(row) {
 
       if (nameEl) nameEl.textContent = swatch.dataset.colorName || swatch.title;
 
-      // Update effective stock for this variant
-      const variantStock = parseInt(swatch.dataset.stock) || 0;
-      effectiveStock = variantStock > 0 ? variantStock : product.stock;
+      // Update effective stock for this variant.
+      // data-stock="" means "not set" → fall back to product.stock.
+      // data-stock="0" means explicitly 0 → out of stock.
+      const rawStock = swatch.dataset.stock;
+      effectiveStock = rawStock !== '' ? parseInt(rawStock) : (product.stock || 0);
       renderStockBadge(effectiveStock);
+      setControlsDisabled(effectiveStock === 0);
 
       // Reset qty to 0 (or existing cart qty for this color)
       const newKey = `${productId}_${idx}`;
@@ -220,6 +242,20 @@ function setupRowInteractions(row) {
     });
   });
 
+  // ── Enable / disable stepper controls based on stock ────────
+  function setControlsDisabled(disabled) {
+    qtyInput.disabled = disabled;
+    if (minusBtn) minusBtn.disabled = disabled;
+    if (plusBtn)  plusBtn.disabled  = disabled;
+    if (disabled) {
+      qtyInput.value = 0;
+      qtyInput.classList.remove('stock-exceed');
+    }
+  }
+
+  // Apply initial state
+  setControlsDisabled(effectiveStock === 0);
+
   // ── Price / savings display ──────────────────────────────────
   const updatePriceDisplay = () => {
     const rawQty = parseInt(qtyInput.value) || 0;
@@ -228,19 +264,7 @@ function setupRowInteractions(row) {
     const { price } = getEffectivePrice(product, section, qty);
     const priceEl = row.querySelector('.js-price-value');
     if (priceEl) priceEl.textContent = fmt(price);
-
-    if (stockWarn) {
-      if (rawQty > effectiveStock && effectiveStock > 0) {
-        stockWarn.textContent = `⚠ Stock: ${effectiveStock} un`;
-        qtyInput.classList.add('stock-exceed');
-      } else if (effectiveStock === 0) {
-        stockWarn.textContent = '⚠ Sin stock';
-        qtyInput.classList.add('stock-exceed');
-      } else {
-        stockWarn.textContent = '';
-        qtyInput.classList.remove('stock-exceed');
-      }
-    }
+    qtyInput.classList.remove('stock-exceed');
   };
 
   // ── Auto-sync cart when qty changes ─────────────────────────
@@ -263,8 +287,13 @@ function setupRowInteractions(row) {
   };
 
   qtyInput.addEventListener('input', () => {
+    let qty = parseInt(qtyInput.value) || 0;
+    if (effectiveStock > 0 && qty > effectiveStock) {
+      qty = effectiveStock;
+      qtyInput.value = qty;
+    }
     updatePriceDisplay();
-    syncCart(parseInt(qtyInput.value) || 0);
+    syncCart(qty);
   });
 
   qtyInput.addEventListener('blur', () => {
@@ -281,7 +310,12 @@ function setupRowInteractions(row) {
 
   // + button
   plusBtn?.addEventListener('click', () => {
-    const newQty = (parseInt(qtyInput.value) || 0) + 1;
+    const current = parseInt(qtyInput.value) || 0;
+    if (current >= effectiveStock) {
+      showStockTooltip(row.querySelector('.row-qty-stepper'));
+      return;
+    }
+    const newQty = current + 1;
     qtyInput.value = newQty;
     updatePriceDisplay();
     syncCart(newQty, true);

@@ -114,7 +114,8 @@ function renderOrdersTable(wrap) {
         <td style="font-weight:700">#${o.id}</td>
         <td>
           ${escapeHtml(o.client_name)}
-          <br><small style="color:var(--color-text-muted)">${escapeHtml(o.client_phone)}</small>
+          ${o.client_club ? `<br><small style="color:var(--color-text-muted)">${escapeHtml(o.client_club)}</small>` : ''}
+          <br><small style="color:var(--color-text-muted)">${escapeHtml(o.client_phone)}${o.client_email ? ' · ' + escapeHtml(o.client_email) : ''}</small>
         </td>
         <td>${sectionLabel}</td>
         <td style="font-weight:600">${fmtPrice(o.total)}</td>
@@ -173,13 +174,18 @@ function renderOrderPanel(order) {
   const canEdit = isNew || order.status === 'pending';
 
   const v = {
-    section:      order?.section      || 'mayorista',
-    client_name:  order?.client_name  || '',
-    client_phone: order?.client_phone || '',
-    delivery:     order?.delivery     || 'retiro',
-    address:      order?.address      || '',
-    comprobante:  order?.comprobante  || 'Consumidor Final A',
-    notes:        order?.notes        || '',
+    section:          order?.section          || 'mayorista',
+    client_name:      order?.client_name      || '',
+    client_club:      order?.client_club      || '',
+    client_dni:       order?.client_dni       || '',
+    client_cuit:      order?.client_cuit      || '',
+    client_phone:     order?.client_phone     || '',
+    client_email:     order?.client_email     || '',
+    address:          order?.address          || '',
+    client_localidad: order?.client_localidad || '',
+    delivery:         order?.delivery         || 'retiro',
+    comprobante:      order?.comprobante      || 'Consumidor Final A',
+    notes:            order?.notes            || '',
   };
 
   const statusBadge = !isNew && !canEdit
@@ -215,8 +221,34 @@ function renderOrderPanel(order) {
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">Nombre del cliente *</label>
+          <label class="form-label">Nombre y apellido *</label>
           <input type="text" id="op-name" class="form-control" value="${escapeHtml(v.client_name)}" ${readonlyAttr}>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Club / Empresa / Consultorio</label>
+          <input type="text" id="op-club" class="form-control" value="${escapeHtml(v.client_club)}" ${readonlyAttr} placeholder="Opcional">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">DNI *</label>
+            <input type="text" id="op-dni" class="form-control" value="${escapeHtml(v.client_dni)}" ${readonlyAttr}>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">CUIT *</label>
+            <input type="text" id="op-cuit" class="form-control" value="${escapeHtml(v.client_cuit)}" ${readonlyAttr}>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label class="form-label">Dirección *</label>
+          <input type="text" id="op-address" class="form-control" value="${escapeHtml(v.address)}" ${readonlyAttr} placeholder="Calle, número, piso/dpto">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Localidad / Código postal *</label>
+          <input type="text" id="op-localidad" class="form-control" value="${escapeHtml(v.client_localidad)}" ${readonlyAttr}>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mail *</label>
+          <input type="email" id="op-email" class="form-control" value="${escapeHtml(v.client_email)}" ${readonlyAttr}>
         </div>
         <div class="form-group">
           <label class="form-label">Teléfono *</label>
@@ -234,10 +266,6 @@ function renderOrderPanel(order) {
             <option value="retiro"   ${v.delivery==='retiro'   ?'selected':''}>Retiro en sucursal</option>
             <option value="andreani" ${v.delivery==='andreani' ?'selected':''}>Andreani</option>
           </select>
-        </div>
-        <div class="form-group" id="op-address-group" style="display:${v.delivery==='andreani'?'block':'none'}">
-          <label class="form-label">Dirección</label>
-          <input type="text" id="op-address" class="form-control" value="${escapeHtml(v.address)}" ${readonlyAttr}>
         </div>
         <div class="form-group">
           <label class="form-label">Notas</label>
@@ -259,11 +287,7 @@ function renderOrderPanel(order) {
     </div>
   `;
 
-  // Toggle dirección cuando cambia entrega
-  document.getElementById('op-delivery')?.addEventListener('change', e => {
-    document.getElementById('op-address-group').style.display =
-      e.target.value === 'andreani' ? 'block' : 'none';
-  });
+  // (sin toggle de dirección — el campo siempre es visible)
 
   // Agregar ítem
   document.getElementById('btn-add-item')?.addEventListener('click', () => {
@@ -364,21 +388,27 @@ function collectOrderData() {
   });
 
   return {
-    section:      document.getElementById('op-section')     ?.value?.trim() || 'mayorista',
-    client_name:  document.getElementById('op-name')        ?.value?.trim() || '',
-    client_phone: document.getElementById('op-phone')       ?.value?.trim() || '',
-    delivery:     document.getElementById('op-delivery')    ?.value         || 'retiro',
-    address:      document.getElementById('op-address')     ?.value?.trim() || '',
-    comprobante:  document.getElementById('op-comprobante') ?.value         || '',
-    notes:        document.getElementById('op-notes')       ?.value?.trim() || '',
+    section:          document.getElementById('op-section')   ?.value?.trim() || 'mayorista',
+    client_name:      document.getElementById('op-name')      ?.value?.trim() || '',
+    client_club:      document.getElementById('op-club')      ?.value?.trim() || '',
+    client_dni:       document.getElementById('op-dni')       ?.value?.trim() || '',
+    client_cuit:      document.getElementById('op-cuit')      ?.value?.trim() || '',
+    client_phone:     document.getElementById('op-phone')     ?.value?.trim() || '',
+    client_email:     document.getElementById('op-email')     ?.value?.trim() || '',
+    address:          document.getElementById('op-address')   ?.value?.trim() || '',
+    client_localidad: document.getElementById('op-localidad') ?.value?.trim() || '',
+    delivery:         document.getElementById('op-delivery')  ?.value         || 'retiro',
+    comprobante:      document.getElementById('op-comprobante')?.value        || '',
+    notes:            document.getElementById('op-notes')     ?.value?.trim() || '',
     items,
   };
 }
 
 async function saveOrder(orderId) {
   const data = collectOrderData();
-  if (!data.client_name)   { toast('Ingresá el nombre del cliente', 'error'); return; }
-  if (!data.items.length)  { toast('Agregá al menos un ítem al pedido', 'error'); return; }
+  if (!data.client_name)  { toast('Ingresá el nombre del cliente', 'error'); return; }
+  if (!data.client_phone) { toast('Ingresá el teléfono del cliente', 'error'); return; }
+  if (!data.items.length) { toast('Agregá al menos un ítem al pedido', 'error'); return; }
 
   try {
     if (orderId) {

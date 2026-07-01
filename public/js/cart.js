@@ -6,6 +6,13 @@ function productImgSrc(slug, filename) {
 }
 
 // ─── Cart Operations ──────────────────────────────────────────
+function getVariantStock(product, variantIdx) {
+  const image = product.images && product.images[variantIdx];
+  // null stock means "not set" → use product.stock; 0 or positive means explicit value
+  if (image && image.stock != null) return image.stock;
+  return product.stock || 0;
+}
+
 window.addToCart = function(productId, quantity, section, variantIdx, silent) {
   const s = section || state.activeSection;
   const product = state.products.find(p => p.id === productId);
@@ -16,11 +23,12 @@ window.addToCart = function(productId, quantity, section, variantIdx, silent) {
   const colorName = (image && image.color_name)
     ? image.color_name
     : (image ? (`Var. ${idx + 1}`) : '');
-  const imageStock = (image && image.stock > 0) ? image.stock : product.stock;
-  const stockIssue = quantity > imageStock;
+  const availableStock = getVariantStock(product, idx);
+  if (availableStock === 0) return; // never add out-of-stock items
+  const cappedQty = Math.min(quantity, availableStock);
   const key = `${productId}_${idx}`;
 
-  state.carts[s][key] = { productId, quantity, stockIssue, variantIdx: idx, colorName };
+  state.carts[s][key] = { productId, quantity: cappedQty, variantIdx: idx, colorName };
   saveCartToStorage();
   updateCartUI();
   if (!silent) {
@@ -43,10 +51,10 @@ window.updateCartQty = function(key, quantity, section) {
   if (!existing) return;
   const product = state.products.find(p => p.id === existing.productId);
   if (!product) return;
-  const image = product.images && product.images[existing.variantIdx];
-  const imageStock = (image && image.stock > 0) ? image.stock : product.stock;
-  const stockIssue = quantity > imageStock;
-  state.carts[s][key] = { ...existing, quantity, stockIssue };
+  const availableStock = getVariantStock(product, existing.variantIdx);
+  if (availableStock === 0) return;
+  const cappedQty = Math.min(quantity, availableStock);
+  state.carts[s][key] = { ...existing, quantity: cappedQty };
   saveCartToStorage();
   updateCartUI();
 };
@@ -96,11 +104,11 @@ window.updateCartUI = function() {
   if (tabPro)  tabPro.style.display  = isPro  ? '' : 'none';
   if (tabMayo) tabMayo.style.display = isMayo ? '' : 'none';
 
-  // FABs: disable the inactive section's FAB
+  // FABs: always clickable — clicking the inactive one swaps the active section
   const fabPro  = document.getElementById('fab-cart-pro');
   const fabMayo = document.getElementById('fab-cart-mayo');
-  if (fabPro)  { fabPro.disabled  = !isPro;  fabPro.style.opacity  = isPro  ? '' : '0.3'; }
-  if (fabMayo) { fabMayo.disabled = !isMayo; fabMayo.style.opacity = isMayo ? '' : '0.3'; }
+  if (fabPro)  { fabPro.disabled  = false; fabPro.style.opacity  = ''; }
+  if (fabMayo) { fabMayo.disabled = false; fabMayo.style.opacity = ''; }
 
   const proCount  = getCartItemCount('profesional');
   const mayoCount = getCartItemCount('mayorista');
@@ -178,7 +186,7 @@ window.renderCartSidebar = function(section) {
         input.addEventListener('change', () => {
           const key = input.dataset.key;
           const qty = parseInt(input.value) || 1;
-          updateCartQty(key, Math.max(1, qty), section);
+          updateCartQty(key, Math.max(1, qty), section); // updateCartQty caps at available stock
         });
         input.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') input.blur();
@@ -241,14 +249,13 @@ function buildCartItemHTML(item, section) {
   const colorLabel = item.colorName ? ` — ${item.colorName}` : '';
 
   return `
-  <div class="cart-item ${item.stockIssue ? 'has-stock-issue' : ''}">
+  <div class="cart-item">
     <div class="cart-item-img">
       ${imgSrc ? `<img src="${imgSrc}" alt="${product.name}">` : ''}
     </div>
     <div class="cart-item-info">
       <div class="cart-item-name">${product.name}${colorLabel}</div>
       ${tier ? `<div class="cart-item-discount">✓ ${tier.percentage}% OFF aplicado</div>` : ''}
-      ${item.stockIssue ? `<div class="cart-stock-warning">⚠ Stock insuficiente</div>` : ''}
       <div class="cart-item-qty-row">
         <button class="cart-qty-btn cart-qty-minus" data-key="${key}">−</button>
         <input type="number" class="cart-qty-btn cart-item-qty-input" data-key="${key}" value="${item.quantity}" min="1"
