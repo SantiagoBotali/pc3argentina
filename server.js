@@ -13,14 +13,34 @@ async function createApp() {
 
   app.set('trust proxy', 1);
 
-  // Static files
-  app.use(express.static(path.join(__dirname, 'public')));
-  app.use('/productos', express.static(path.join(__dirname, 'productos')));
-  app.use('/PC3logo.png', express.static(path.join(__dirname, 'PC3logo.png')));
-  app.use('/PC3logo-whitevariant.png', express.static(path.join(__dirname, 'PC3logo-whitevariant.png')));
-  app.get('/logo-mayorista-negro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista Negro.png')));
-  app.get('/logo-mayorista-pro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO.png')));
-  app.get('/logo-mayorista-pro-negro.png', (req, res) => res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO Negro.png')));
+  // Static files — long cache for immutable assets, short cache for HTML
+  const ONE_YEAR = 365 * 24 * 60 * 60;
+  app.use(express.static(path.join(__dirname, 'public'), {
+    maxAge: ONE_YEAR * 1000,
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  }));
+  app.use('/productos', express.static(path.join(__dirname, 'productos'), {
+    maxAge: ONE_YEAR * 1000,
+  }));
+  const logoOpts = { maxAge: ONE_YEAR * 1000 };
+  app.use('/PC3logo.png', express.static(path.join(__dirname, 'PC3logo.png'), logoOpts));
+  app.use('/PC3logo-whitevariant.png', express.static(path.join(__dirname, 'PC3logo-whitevariant.png'), logoOpts));
+  app.get('/logo-mayorista-negro.png', (req, res) => {
+    res.setHeader('Cache-Control', `public, max-age=${ONE_YEAR}`);
+    res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista Negro.png'));
+  });
+  app.get('/logo-mayorista-pro.png', (req, res) => {
+    res.setHeader('Cache-Control', `public, max-age=${ONE_YEAR}`);
+    res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO.png'));
+  });
+  app.get('/logo-mayorista-pro-negro.png', (req, res) => {
+    res.setHeader('Cache-Control', `public, max-age=${ONE_YEAR}`);
+    res.sendFile(path.join(__dirname, 'PC3 Logo Mayorista PRO Negro.png'));
+  });
 
   // Body parsing
   app.use(express.json());

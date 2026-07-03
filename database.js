@@ -73,12 +73,16 @@ async function exec(sql) {
 function save() {}
 
 async function init() {
+  // max:3 — serverless functions are short-lived; a large pool wastes Neon connections.
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
+    max: 3,
+    idleTimeoutMillis: 10_000,
   });
 
-  // ── Schema ───────────────────────────────────────────────────────
+  // ── Schema + migrations in two batched round-trips ───────────────
+  // Batching reduces cold-start latency: 14 sequential queries → 2 queries.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS products (
       id           SERIAL PRIMARY KEY,
@@ -94,10 +98,7 @@ async function init() {
       sort_order   INTEGER NOT NULL DEFAULT 0,
       created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await pool.query(`
+    );
     CREATE TABLE IF NOT EXISTS product_images (
       id          SERIAL PRIMARY KEY,
       product_id  INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -106,10 +107,7 @@ async function init() {
       color_hex   TEXT    NOT NULL DEFAULT '',
       stock       INTEGER NOT NULL DEFAULT 0,
       sort_order  INTEGER NOT NULL DEFAULT 0
-    )
-  `);
-
-  await pool.query(`
+    );
     CREATE TABLE IF NOT EXISTS discount_tiers (
       id           SERIAL PRIMARY KEY,
       product_id   INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -117,43 +115,60 @@ async function init() {
       min_quantity INTEGER NOT NULL,
       percentage   REAL    NOT NULL,
       UNIQUE(product_id, section, min_quantity)
-    )
-  `);
-
-  await pool.query(`
+    );
     CREATE TABLE IF NOT EXISTS admin_users (
       id            SERIAL PRIMARY KEY,
       username      TEXT    NOT NULL UNIQUE,
       password_hash TEXT    NOT NULL
-    )
-  `);
-
-  await pool.query(`
+    );
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
-    )
-  `);
-
-  await pool.query(`
+    );
     CREATE TABLE IF NOT EXISTS colors (
       id         SERIAL PRIMARY KEY,
       name       TEXT    NOT NULL,
       hex        TEXT    NOT NULL DEFAULT '#cccccc',
       sort_order INTEGER NOT NULL DEFAULT 0
-    )
+    );
+    CREATE TABLE IF NOT EXISTS orders (
+      id           SERIAL PRIMARY KEY,
+      status       TEXT        NOT NULL DEFAULT 'pending',
+      section      TEXT        NOT NULL DEFAULT '',
+      client_name  TEXT        NOT NULL DEFAULT '',
+      client_phone TEXT        NOT NULL DEFAULT '',
+      delivery     TEXT        NOT NULL DEFAULT 'retiro',
+      address      TEXT        NOT NULL DEFAULT '',
+      comprobante  TEXT        NOT NULL DEFAULT '',
+      notes        TEXT        NOT NULL DEFAULT '',
+      total        INTEGER     NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      confirmed_at TIMESTAMPTZ
+    );
+    CREATE TABLE IF NOT EXISTS order_items (
+      id           SERIAL PRIMARY KEY,
+      order_id     INTEGER     NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id   INTEGER     REFERENCES products(id) ON DELETE SET NULL,
+      product_name TEXT        NOT NULL DEFAULT '',
+      color_name   TEXT        NOT NULL DEFAULT '',
+      quantity     INTEGER     NOT NULL DEFAULT 1,
+      unit_price   INTEGER     NOT NULL DEFAULT 0,
+      subtotal     INTEGER     NOT NULL DEFAULT 0
+    );
   `);
 
-  // ── Migrations (idempotent column additions) ──────────────────────
-  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS price_public INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_name TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0`);
-  await pool.query(`ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_hex TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_club     TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_dni      TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_cuit     TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_localidad TEXT NOT NULL DEFAULT ''`);
-  await pool.query(`ALTER TABLE orders ADD COLUMN IF NOT EXISTS client_email    TEXT NOT NULL DEFAULT ''`);
+  // ── Idempotent column migrations (batched) ────────────────────────
+  await pool.query(`
+    ALTER TABLE products      ADD COLUMN IF NOT EXISTS price_public     INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_name      TEXT    NOT NULL DEFAULT '';
+    ALTER TABLE product_images ADD COLUMN IF NOT EXISTS stock           INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE product_images ADD COLUMN IF NOT EXISTS color_hex       TEXT    NOT NULL DEFAULT '';
+    ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_club     TEXT    NOT NULL DEFAULT '';
+    ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_dni      TEXT    NOT NULL DEFAULT '';
+    ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_cuit     TEXT    NOT NULL DEFAULT '';
+    ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_localidad TEXT   NOT NULL DEFAULT '';
+    ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_email    TEXT    NOT NULL DEFAULT '';
+  `);
 
   // ── Seed default colors if table is empty ─────────────────────────
   const colorCount = await pool.query(`SELECT COUNT(*) FROM colors`);
@@ -171,36 +186,6 @@ async function init() {
         ('Amarillo',    '#F5C518', 8)
     `);
   }
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id           SERIAL PRIMARY KEY,
-      status       TEXT        NOT NULL DEFAULT 'pending',
-      section      TEXT        NOT NULL DEFAULT '',
-      client_name  TEXT        NOT NULL DEFAULT '',
-      client_phone TEXT        NOT NULL DEFAULT '',
-      delivery     TEXT        NOT NULL DEFAULT 'retiro',
-      address      TEXT        NOT NULL DEFAULT '',
-      comprobante  TEXT        NOT NULL DEFAULT '',
-      notes        TEXT        NOT NULL DEFAULT '',
-      total        INTEGER     NOT NULL DEFAULT 0,
-      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      confirmed_at TIMESTAMPTZ
-    )
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS order_items (
-      id           SERIAL PRIMARY KEY,
-      order_id     INTEGER     NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-      product_id   INTEGER     REFERENCES products(id) ON DELETE SET NULL,
-      product_name TEXT        NOT NULL DEFAULT '',
-      color_name   TEXT        NOT NULL DEFAULT '',
-      quantity     INTEGER     NOT NULL DEFAULT 1,
-      unit_price   INTEGER     NOT NULL DEFAULT 0,
-      subtotal     INTEGER     NOT NULL DEFAULT 0
-    )
-  `);
 
   return { prepare, getClient, query, exec, save };
 }

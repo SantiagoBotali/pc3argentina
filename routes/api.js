@@ -96,7 +96,7 @@ async function getProductList(products) {
 // Survives across warm requests on the same Vercel instance.
 // Invalidated whenever a product is created, updated, or deleted.
 const catalogCache = { data: null, expiresAt: 0 };
-const CACHE_TTL_MS = 30_000; // 30 seconds
+const CACHE_TTL_MS = 5 * 60_000; // 5 minutes
 
 function invalidateCache() { catalogCache.data = null; catalogCache.expiresAt = 0; }
 
