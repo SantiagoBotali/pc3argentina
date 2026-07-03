@@ -2139,6 +2139,7 @@ body.section-mayorista .pv-add-btn:hover:not(:disabled) {
   }
 
   .row-num { font-size: 16px; }
+  .row-image { width: 130px; }
 
   .row-right {
     grid-column: 1 / -1;
@@ -2162,7 +2163,27 @@ body.section-mayorista .pv-add-btn:hover:not(:disabled) {
 @media (max-width: 768px) {
   .header-inner { padding: 0 16px; }
   .catalog-main { padding: 0 12px 32px; }
-  .guide-inner { padding: 14px 16px; }
+  .guide-inner { padding: 12px 16px 14px; }
+  .guide-banner { max-height: 480px; }
+  .guide-pretext { font-size: 12px; margin-bottom: 10px; }
+
+  .guide-cards {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .guide-arrow {
+    padding: 0;
+    transform: rotate(90deg);
+    align-self: center;
+  }
+
+  /* Compact guide cards on mobile */
+  .guide-card { padding: 10px 12px; gap: 5px; }
+  .guide-card-lead { gap: 8px; margin-bottom: 0; }
+  .guide-card-num { width: 22px; height: 22px; min-width: 22px; font-size: 11px; border-radius: 6px; }
+  .guide-card-icon { width: 28px; height: 28px; min-width: 28px; }
+  .guide-card-title { font-size: 12px; }
+  .guide-card-desc { font-size: 11px; line-height: 1.55; }
 
   .cart-sidebar { width: 100%; right: -100%; }
   .cart-sidebar.open { right: 0; }
@@ -2176,15 +2197,12 @@ body.section-mayorista .pv-add-btn:hover:not(:disabled) {
   .fab-group { bottom: 20px; right: 16px; }
   .fab-cart { padding: 10px 16px 10px 13px; }
 
-  .guide-cards {
-    flex-direction: column;
-    gap: 8px;
-  }
-  .guide-arrow {
-    padding: 0;
-    transform: rotate(90deg);
-    align-self: center;
-  }
+  /* Badge al lado del precio — reordenar y quitar wrap */
+  .row-right { flex-wrap: nowrap; align-items: center; }
+  .row-price-block     { order: 1; flex: 0 0 auto; min-width: 0; }
+  .js-stock-badge-wrap { order: 2; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+  .row-qty-stepper     { order: 3; flex-shrink: 0; margin-left: 0; }
+  .row-stock-badge     { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .preview-content { grid-template-columns: 1fr; }
   .pv-gallery {
@@ -2195,7 +2213,73 @@ body.section-mayorista .pv-add-btn:hover:not(:disabled) {
 }
 
 @media (max-width: 560px) {
-  .section-selector { grid-template-columns: 1fr; gap: 8px; }
+  /* Section selector — compact 2-col side-by-side tabs */
+  .section-selector {
+    grid-template-columns: 1fr 1fr;
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .section-card { padding: 8px 10px 10px; }
+
+  .section-card-top { margin-bottom: 6px; }
+
+  /* Hide "Lista" eyebrow to save vertical space */
+  .section-card-eyebrow { display: none; }
+
+  .section-card-badge {
+    font-size: 8px;
+    padding: 2px 6px;
+    letter-spacing: 0.03em;
+  }
+
+  .section-card-main {
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .section-card-icon-img { height: 28px; }
+
+  .section-card-name { font-size: 14px; }
+
+  /* Show min price inline with its label */
+  .section-card-footer {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .section-card-min-label { font-size: 8px; letter-spacing: 0.08em; }
+
+  .section-card-min { font-size: 14px; }
+
+  /* Guide: horizontal compact strip — solo número, ícono y título */
+  .guide-banner { max-height: 160px; }
+  .guide-inner { padding: 10px 12px 12px; }
+  .guide-pretext { font-size: 11px; margin-bottom: 8px; }
+
+  .guide-cards {
+    flex-direction: row;
+    gap: 4px;
+    align-items: stretch;
+  }
+  .guide-arrow {
+    transform: none;     /* vuelve a horizontal */
+    padding: 0 2px;
+    align-self: center;
+  }
+  .guide-card {
+    padding: 8px;
+    gap: 4px;
+    flex: 1;
+  }
+  .guide-card-lead { gap: 6px; margin-bottom: 2px; }
+  .guide-card-num { width: 18px; height: 18px; min-width: 18px; font-size: 10px; border-radius: 5px; }
+  .guide-card-icon { width: 22px; height: 22px; min-width: 22px; }
+  .guide-card-title { font-size: 10px; line-height: 1.35; }
+  .guide-card-desc { display: none; }     /* oculta descripción para ahorrar espacio */
+
   .fab-cart-title { font-size: 11px; }
   .fab-cart-subtitle { display: none; }
 }
@@ -2205,10 +2289,37 @@ body.section-mayorista .pv-add-btn:hover:not(:disabled) {
   .cart-btn-label { display: none; }
   .cart-tab-btn { padding: 8px 10px; gap: 6px; }
 
-  .product-row { grid-template-columns: 0 100px 1fr; }
+  .product-row { grid-template-columns: 0 80px 1fr; }
   .row-num { display: none; }
-  .row-image { width: 100px; padding: 8px; }
+  .row-image { width: 80px; padding: 6px; }
   .row-description { display: none; }
+
+  /* Compact row content */
+  .row-main { padding: 10px 12px; }
+  .row-name { font-size: 13px; }
+  .row-price-value { font-size: 22px; }
+  .row-price-unit { font-size: 11px; }
+
+  /* Smaller stepper */
+  .qty-step-btn { width: 28px; height: 28px; font-size: 15px; }
+  .qty-input { width: 36px; height: 28px; font-size: 12px; }
+
+  /* Stock badge al lado del precio — flex nowrap + order */
+  .row-right {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+  }
+
+  /* Orden: [precio] [badge] [stepper] */
+  .row-price-block     { order: 1; flex: 0 0 auto; min-width: 0; }
+  .js-stock-badge-wrap { order: 2; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+  .row-qty-stepper     { order: 3; flex-shrink: 0; margin-left: 0; }
+
+  /* Badge compacto en una línea, se corta si es muy largo */
+  .row-stock-badge { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* ─── Light mode overrides ───────────────────────────────────── */
