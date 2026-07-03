@@ -2289,7 +2289,7 @@ body.section-mayorista .pv-add-btn:hover:not(:disabled) {
   .cart-btn-label { display: none; }
   .cart-tab-btn { padding: 8px 10px; gap: 6px; }
 
-  .product-row { grid-template-columns: 0 80px 1fr; }
+  .product-row { grid-template-columns: 80px 1fr; }
   .row-num { display: none; }
   .row-image { width: 80px; padding: 6px; }
   .row-description { display: none; }
