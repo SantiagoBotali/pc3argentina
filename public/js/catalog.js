@@ -474,8 +474,9 @@ window.openPreview = function(productId) {
     closePreview();
   });
 
-  // Apply initial state
-  updateStockState(0);
+  // Start on the first slide that has stock; fall back to 0 if all are out
+  const firstStockSlide = images.findIndex((img, i) => getVariantStock(product, i) > 0);
+  goTo(firstStockSlide >= 0 ? firstStockSlide : 0);
   updateSavings();
 };
 

@@ -65,24 +65,33 @@ function buildProductRow(product, section, rowNum) {
   const images    = product.images || [];
   const basePrice = section === 'mayorista' ? product.price_mayo : product.price_pro;
   const webPrice  = product.price_pro;
-  const firstImg  = images[0];
-  const imgSrc    = firstImg ? productImgSrc(product.slug, firstImg.filename) : null;
-
-  const cartItem   = state.carts[section][`${product.id}_0`];
-  const currentQty = cartItem ? cartItem.quantity : 0;
 
   // Public price reference (shown whenever a public price is set)
   const publicPrice   = product.price_public || 0;
   const showPublicRef = publicPrice > 0;
 
-  // Effective stock: use variant's stock if explicitly set (even 0), else product-level stock
-  const firstImg0 = images[0];
-  const firstEffectiveStock = firstImg0?.stock != null ? firstImg0.stock : (product.stock || 0);
+  // Helper: effective stock for an image entry
+  const imgStock = (img) => img.stock != null ? img.stock : (product.stock || 0);
 
   // Fully out of stock = every variant (or product itself if no variants) has 0 stock
   const isFullyOutOfStock = images.length
-    ? images.every(img => (img.stock != null ? img.stock : (product.stock || 0)) === 0)
+    ? images.every(img => imgStock(img) === 0)
     : (product.stock || 0) === 0;
+
+  // First index with stock > 0; fall back to 0 if all are out of stock
+  const firstStockIdx = images.length
+    ? images.findIndex(img => imgStock(img) > 0)
+    : -1;
+  const activeIdx = firstStockIdx >= 0 ? firstStockIdx : 0;
+
+  const firstImg  = images[activeIdx];
+  const imgSrc    = firstImg ? productImgSrc(product.slug, firstImg.filename) : null;
+
+  const cartItem   = state.carts[section][`${product.id}_${activeIdx}`];
+  const currentQty = cartItem ? cartItem.quantity : 0;
+
+  // Effective stock for the initially displayed variant
+  const firstEffectiveStock = firstImg ? imgStock(firstImg) : (product.stock || 0);
 
   // Stock badge (updates dynamically when color is switched)
   function stockBadgeHtml(s) {
@@ -95,26 +104,30 @@ function buildProductRow(product, section, rowNum) {
   const stockHtml = `<div class="js-stock-badge-wrap">${stockBadgeHtml(firstEffectiveStock)}</div>`;
 
   // Color swatches — always shown if product has images
-  const firstLabel = images[0]?.color_name || variantLabel(images[0]?.filename, 0);
+  const activeLabel = images[activeIdx]?.color_name || variantLabel(images[activeIdx]?.filename, activeIdx);
   const swatchesHtml = images.length > 0
     ? `<div class="row-swatches">
         <span class="row-swatches-label">COLOR</span>
         <div class="row-swatch-circles">
           ${images.map((img, i) => {
-            const label = img.color_name || variantLabel(img.filename, i);
-            const hex   = img.color_hex  || '#cccccc';
-            return `<button class="row-swatch js-swatch ${i === 0 ? 'active' : ''}"
+            const label    = img.color_name || variantLabel(img.filename, i);
+            const hex      = img.color_hex  || '#cccccc';
+            const stock    = imgStock(img);
+            const outClass = stock === 0 ? ' row-swatch--out-of-stock' : '';
+            const disabled = stock === 0 ? 'disabled' : '';
+            return `<button class="row-swatch js-swatch${outClass}${i === activeIdx ? ' active' : ''}"
               data-swatch-idx="${i}"
               data-src="${productImgSrc(product.slug, img.filename)}"
               data-color-name="${label}"
               data-stock="${img.stock != null ? img.stock : ''}"
               aria-label="${label}"
-              title="${label}"
+              title="${stock === 0 ? label + ' (sin stock)' : label}"
+              ${disabled}
               style="background-color:${hex}">
             </button>`;
           }).join('')}
         </div>
-        <span class="row-swatch-name js-swatch-name">${firstLabel}</span>
+        <span class="row-swatch-name js-swatch-name">${activeLabel}</span>
       </div>`
     : '';
 
@@ -191,13 +204,15 @@ function setupRowInteractions(row) {
   const nameEl        = row.querySelector('.js-swatch-name');
 
   // ── Variant / swatch selection ──────────────────────────────
-  let selectedVariantIdx = 0;
+  const images = product.images || [];
+  const imgStockFn = (img) => img.stock != null ? img.stock : (product.stock || 0);
+  const firstStockIdx = images.findIndex(img => imgStockFn(img) > 0);
+  let selectedVariantIdx = firstStockIdx >= 0 ? firstStockIdx : 0;
   const mainImg = row.querySelector('.js-main-img');
 
   // Effective stock for the currently selected variant.
-  // Use variant's own stock when explicitly set (even 0); fall back to product.stock only when null.
-  const firstImage = product.images && product.images[0];
-  let effectiveStock = firstImage?.stock != null ? firstImage.stock : (product.stock || 0);
+  const firstImage = images[selectedVariantIdx];
+  let effectiveStock = firstImage ? imgStockFn(firstImage) : (product.stock || 0);
 
   function renderStockBadge(s) {
     if (!stockBadgeWrap) return;

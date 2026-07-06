@@ -807,6 +807,29 @@ body.section-mayorista   #cart-btn-pro  { display: none; }
   box-shadow: 0 0 0 1.5px rgba(255,255,255,0.15) inset, 0 0 0 5px var(--color-accent-glow);
 }
 
+.row-swatch--out-of-stock {
+  opacity: 0.4;
+  cursor: not-allowed;
+  position: relative;
+}
+.row-swatch--out-of-stock::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 135%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.75);
+  transform: translate(-50%, -50%) rotate(-45deg);
+  border-radius: 1px;
+  pointer-events: none;
+}
+.row-swatch--out-of-stock:hover {
+  transform: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .row-swatches-label {
   font-size: 10px;
   color: var(--color-text-faint);
