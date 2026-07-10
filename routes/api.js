@@ -617,11 +617,13 @@ router.post('/admin/products/:id/images', requireAdmin, (req, res) => {
       ).get(product.id);
       let nextOrder = (maxRow?.m == null ? -1 : maxRow.m) + 1;
 
+      const imageType = req.body.image_type === 'context' ? 'context' : 'variant';
+
       for (const file of req.files) {
         const url = await uploadToCloudinary(file.buffer, `pc3/${product.slug}`);
         await db.prepare(
-          `INSERT INTO product_images (product_id, filename, sort_order) VALUES (?, ?, ?)`
-        ).run(product.id, url, nextOrder++);
+          `INSERT INTO product_images (product_id, filename, sort_order, image_type) VALUES (?, ?, ?, ?)`
+        ).run(product.id, url, nextOrder++, imageType);
       }
 
       const images = await db.prepare(
