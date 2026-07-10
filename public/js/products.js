@@ -315,7 +315,7 @@ function setupRowInteractions(row) {
         requestAnimationFrame(() => requestAnimationFrame(() => { mainImg.style.opacity = '1'; }));
       }, 500);
     };
-    autoTimer = setInterval(tick, 3000);
+    autoTimer = setInterval(tick, 5500);
   }
 
   // Build context images array once for this product (for lightbox)
