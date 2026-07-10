@@ -73,15 +73,16 @@ function buildProductRow(product, section, rowNum) {
   // Helper: effective stock for an image entry
   const imgStock = (img) => img.stock != null ? img.stock : (product.stock || 0);
 
-  // Fully out of stock = every variant (or product itself if no variants) has 0 stock
-  const isFullyOutOfStock = images.length
-    ? images.every(img => imgStock(img) === 0)
+  // Only variant-type images drive swatches and out-of-stock logic
+  const variants = images.filter(img => img.image_type !== 'context');
+
+  // Fully out of stock = every variant (or product.stock if no variants) has 0 stock
+  const isFullyOutOfStock = variants.length
+    ? variants.every(img => imgStock(img) === 0)
     : (product.stock || 0) === 0;
 
-  // First index with stock > 0; fall back to 0 if all are out of stock
-  const firstStockIdx = images.length
-    ? images.findIndex(img => imgStock(img) > 0)
-    : -1;
+  // First index (in full images[]) of a variant with stock > 0; fall back to 0
+  const firstStockIdx = images.findIndex(img => img.image_type !== 'context' && imgStock(img) > 0);
   const activeIdx = firstStockIdx >= 0 ? firstStockIdx : 0;
 
   const firstImg  = images[activeIdx];
@@ -103,13 +104,18 @@ function buildProductRow(product, section, rowNum) {
   }
   const stockHtml = `<div class="js-stock-badge-wrap">${stockBadgeHtml(firstEffectiveStock)}</div>`;
 
-  // Color swatches — always shown if product has images
-  const activeLabel = images[activeIdx]?.color_name || variantLabel(images[activeIdx]?.filename, activeIdx);
-  const swatchesHtml = images.length > 0
+  // Color swatches — only shown when product has variant-type images
+  const activeImg   = images[activeIdx];
+  const activeLabel = (activeImg && activeImg.image_type !== 'context' && activeImg.color_name)
+    ? activeImg.color_name
+    : variantLabel(activeImg?.filename, activeIdx);
+
+  const swatchesHtml = variants.length > 0
     ? `<div class="row-swatches">
         <span class="row-swatches-label">COLOR</span>
         <div class="row-swatch-circles">
           ${images.map((img, i) => {
+            if (img.image_type === 'context') return '';  // skip context photos
             const label    = img.color_name || variantLabel(img.filename, i);
             const hex      = img.color_hex  || '#cccccc';
             const stock    = imgStock(img);
@@ -206,7 +212,8 @@ function setupRowInteractions(row) {
   // ── Variant / swatch selection ──────────────────────────────
   const images = product.images || [];
   const imgStockFn = (img) => img.stock != null ? img.stock : (product.stock || 0);
-  const firstStockIdx = images.findIndex(img => imgStockFn(img) > 0);
+  // Only pick variants as initial selection (context photos don't have per-variant stock)
+  const firstStockIdx = images.findIndex(img => img.image_type !== 'context' && imgStockFn(img) > 0);
   let selectedVariantIdx = firstStockIdx >= 0 ? firstStockIdx : 0;
   const mainImg = row.querySelector('.js-main-img');
 
