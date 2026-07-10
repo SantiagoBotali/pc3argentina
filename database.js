@@ -168,6 +168,7 @@ async function init() {
     ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_cuit     TEXT    NOT NULL DEFAULT '';
     ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_localidad TEXT   NOT NULL DEFAULT '';
     ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_email    TEXT    NOT NULL DEFAULT '';
+    ALTER TABLE product_images ADD COLUMN IF NOT EXISTS image_type      TEXT    NOT NULL DEFAULT 'variant';
   `);
 
   // ── Seed default colors if table is empty ─────────────────────────
