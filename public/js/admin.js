@@ -344,6 +344,7 @@ function buildOrderList(p) {
       </span>
       <button type="button" class="btn btn-ghost btn-sm order-up-btn" data-img-id="${img.id}" style="padding:3px 7px">↑</button>
       <button type="button" class="btn btn-ghost btn-sm order-down-btn" data-img-id="${img.id}" style="padding:3px 7px">↓</button>
+      <button type="button" class="btn btn-danger btn-sm img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}" title="Eliminar imagen" style="padding:3px 7px;flex-shrink:0">✕</button>
     </div>`).join('');
 }
 
@@ -476,13 +477,15 @@ function setupEditFormEvents(product) {
     // ── Delete (variantes y contexto) ───────────────────────────
     document.getElementById('edit-panel-body')?.addEventListener('click', async (e) => {
       if (!e.target.classList.contains('img-thumb-del')) return;
-      const label = e.target.closest('.img-context-row') ? 'foto de contexto' : 'variante';
-      if (!confirm(`¿Eliminar esta ${label}? Se borrará la imagen permanentemente.`)) return;
+      if (!confirm('¿Eliminar esta imagen? Se borrará permanentemente.')) return;
       const imgId     = e.target.dataset.imgId;
       const productId = e.target.dataset.productId;
       try {
         await api(`/admin/products/${productId}/images/${imgId}`, { method: 'DELETE' });
-        e.target.closest('.img-color-row, .img-context-row')?.remove();
+        // Remove the clicked row
+        e.target.closest('.img-color-row, .img-context-row, .order-row')?.remove();
+        // Also remove corresponding row in variant-list / context-list (if deleted from order section)
+        document.querySelector(`#variant-list [data-img-id="${imgId}"], #context-list [data-img-id="${imgId}"]`)?.remove();
         // Rebuild order list from in-memory data
         const prod = admin.products.find(p => p.id === parseInt(productId));
         if (prod) {
