@@ -71,7 +71,9 @@ function buildProductRow(product, section, rowNum) {
   const showPublicRef = publicPrice > 0;
 
   // Helper: effective stock for an image entry
-  const imgStock = (img) => img.stock != null ? img.stock : (product.stock || 0);
+  const imgStock = (img) => (img.image_type === 'context')
+    ? (product.stock || 0)
+    : (img.stock != null ? img.stock : (product.stock || 0));
 
   // Only variant-type images drive swatches and out-of-stock logic
   const variants = images.filter(img => img.image_type !== 'context');
@@ -211,10 +213,13 @@ function setupRowInteractions(row) {
 
   // ── Variant / swatch selection ──────────────────────────────
   const images = product.images || [];
-  const imgStockFn = (img) => img.stock != null ? img.stock : (product.stock || 0);
+  const imgStockFn = (img) => (img.image_type === 'context')
+    ? (product.stock || 0)
+    : (img.stock != null ? img.stock : (product.stock || 0));
   // Only pick variants as initial selection (context photos don't have per-variant stock)
   const firstStockIdx = images.findIndex(img => img.image_type !== 'context' && imgStockFn(img) > 0);
-  let selectedVariantIdx = firstStockIdx >= 0 ? firstStockIdx : 0;
+  const firstVariantIdx = images.findIndex(img => img.image_type !== 'context');
+  let selectedVariantIdx = firstStockIdx >= 0 ? firstStockIdx : (firstVariantIdx >= 0 ? firstVariantIdx : 0);
   const mainImg = row.querySelector('.js-main-img');
 
   // Effective stock for the currently selected variant.

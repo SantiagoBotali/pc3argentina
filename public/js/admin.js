@@ -330,6 +330,7 @@ function buildContextRow(p, img) {
 function buildOrderList(p) {
   const images = p.images || [];
   if (!images.length) return '<p style="font-size:13px;color:var(--color-text-muted)">Aún no hay imágenes.</p>';
+  const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return images.map((img) => `
     <div class="order-row" data-img-id="${img.id}" draggable="true"
       style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--color-surface2);border-radius:6px;cursor:default;user-select:none">
@@ -339,7 +340,7 @@ function buildOrderList(p) {
       <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
         ${img.image_type === 'context'
           ? '📷 Foto de contexto'
-          : `🎨 Variante${img.color_name ? ' — ' + img.color_name : ''}`}
+          : `🎨 Variante${img.color_name ? ' — ' + escHtml(img.color_name) : ''}`}
       </span>
       <button type="button" class="btn btn-ghost btn-sm order-up-btn" data-img-id="${img.id}" style="padding:3px 7px">↑</button>
       <button type="button" class="btn btn-ghost btn-sm order-down-btn" data-img-id="${img.id}" style="padding:3px 7px">↓</button>
@@ -711,6 +712,8 @@ async function saveNewOrder(productId) {
 function setupOrderDragDrop(productId) {
   const list = document.getElementById('order-list');
   if (!list) return;
+  if (list.dataset.ddInit) return; // already wired
+  list.dataset.ddInit = '1';
   let dragSrc = null;
 
   list.addEventListener('dragstart', (e) => {
