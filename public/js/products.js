@@ -83,13 +83,13 @@ function buildProductRow(product, section, rowNum) {
     ? variants.every(img => imgStock(img) === 0)
     : (product.stock || 0) === 0;
 
-  // displayIdx: primera imagen según sort_order (puede ser contexto o variante)
-  const displayIdx = 0;
-
   // cartVariantIdx: primera variante con stock para carrito/swatches
   const firstStockIdx    = images.findIndex(img => img.image_type !== 'context' && imgStock(img) > 0);
   const firstVariantIdx  = images.findIndex(img => img.image_type !== 'context');
   const cartVariantIdx   = firstStockIdx >= 0 ? firstStockIdx : (firstVariantIdx >= 0 ? firstVariantIdx : 0);
+
+  // displayIdx: primera variante con stock; si ninguna tiene stock, primera imagen
+  const displayIdx = firstStockIdx >= 0 ? firstStockIdx : 0;
 
   const firstImg  = images[displayIdx];
   const imgSrc    = firstImg ? productImgSrc(product.slug, firstImg.filename) : null;
