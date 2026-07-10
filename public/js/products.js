@@ -83,18 +83,23 @@ function buildProductRow(product, section, rowNum) {
     ? variants.every(img => imgStock(img) === 0)
     : (product.stock || 0) === 0;
 
-  // First index (in full images[]) of a variant with stock > 0; fall back to 0
-  const firstStockIdx = images.findIndex(img => img.image_type !== 'context' && imgStock(img) > 0);
-  const activeIdx = firstStockIdx >= 0 ? firstStockIdx : 0;
+  // displayIdx: primera imagen según sort_order (puede ser contexto o variante)
+  const displayIdx = 0;
 
-  const firstImg  = images[activeIdx];
+  // cartVariantIdx: primera variante con stock para carrito/swatches
+  const firstStockIdx    = images.findIndex(img => img.image_type !== 'context' && imgStock(img) > 0);
+  const firstVariantIdx  = images.findIndex(img => img.image_type !== 'context');
+  const cartVariantIdx   = firstStockIdx >= 0 ? firstStockIdx : (firstVariantIdx >= 0 ? firstVariantIdx : 0);
+
+  const firstImg  = images[displayIdx];
   const imgSrc    = firstImg ? productImgSrc(product.slug, firstImg.filename) : null;
 
-  const cartItem   = state.carts[section][`${product.id}_${activeIdx}`];
+  const cartItem   = state.carts[section][`${product.id}_${cartVariantIdx}`];
   const currentQty = cartItem ? cartItem.quantity : 0;
 
-  // Effective stock for the initially displayed variant
-  const firstEffectiveStock = firstImg ? imgStock(firstImg) : (product.stock || 0);
+  // Stock efectivo inicial basado en la variante seleccionada para el carrito
+  const cartVariantImg      = images[cartVariantIdx];
+  const firstEffectiveStock = cartVariantImg ? imgStock(cartVariantImg) : (product.stock || 0);
 
   // Stock badge (updates dynamically when color is switched)
   function stockBadgeHtml(s) {
@@ -107,10 +112,10 @@ function buildProductRow(product, section, rowNum) {
   const stockHtml = `<div class="js-stock-badge-wrap">${stockBadgeHtml(firstEffectiveStock)}</div>`;
 
   // Color swatches — only shown when product has variant-type images
-  const activeImg   = images[activeIdx];
+  const activeImg   = images[cartVariantIdx];
   const activeLabel = (activeImg && activeImg.image_type !== 'context' && activeImg.color_name)
     ? activeImg.color_name
-    : variantLabel(activeImg?.filename, activeIdx);
+    : variantLabel(activeImg?.filename, cartVariantIdx);
 
   const swatchesHtml = variants.length > 0
     ? `<div class="row-swatches">
@@ -123,7 +128,7 @@ function buildProductRow(product, section, rowNum) {
             const stock    = imgStock(img);
             const outClass = stock === 0 ? ' row-swatch--out-of-stock' : '';
             const disabled = stock === 0 ? 'disabled' : '';
-            return `<button class="row-swatch js-swatch${outClass}${i === activeIdx ? ' active' : ''}"
+            return `<button class="row-swatch js-swatch${outClass}${i === cartVariantIdx ? ' active' : ''}"
               data-swatch-idx="${i}"
               data-src="${productImgSrc(product.slug, img.filename)}"
               data-color-name="${label}"
@@ -136,6 +141,24 @@ function buildProductRow(product, section, rowNum) {
           }).join('')}
         </div>
         <span class="row-swatch-name js-swatch-name">${activeLabel}</span>
+      </div>`
+    : '';
+
+  const contextImgs = images.reduce((acc, img, i) => {
+    if (img.image_type === 'context') acc.push({ img, i });
+    return acc;
+  }, []);
+  const contextThumbsHtml = contextImgs.length > 0
+    ? `<div class="row-context-thumbs">
+        ${contextImgs.map(({ img, i }) =>
+          `<button class="js-context-thumb row-context-thumb"
+            data-src="${productImgSrc(product.slug, img.filename)}"
+            data-idx="${i}"
+            title="Foto de contexto">
+            <img src="${productImgSrc(product.slug, img.filename)}" loading="lazy" alt="">
+          </button>`
+        ).join('')}
+        <button class="js-context-lightbox row-context-link">Ver fotos</button>
       </div>`
     : '';
 
@@ -164,6 +187,7 @@ function buildProductRow(product, section, rowNum) {
     ${product.contents    ? `<div class="row-contents">${product.contents}</div>`         : ''}
     ${product.description ? `<div class="row-description">${product.description}</div>`  : ''}
     ${swatchesHtml}
+    ${contextThumbsHtml}
     <button class="row-detail-link js-detail-link" data-preview-id="${product.id}">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -226,6 +250,10 @@ function setupRowInteractions(row) {
   const firstImage = images[selectedVariantIdx];
   let effectiveStock = firstImage ? imgStockFn(firstImage) : (product.stock || 0);
 
+  // ── Auto-slideshow state (declared early so swatch handler can reference it) ──
+  let autoTimer = null;
+  const stopAutoSlide = () => { clearInterval(autoTimer); autoTimer = null; };
+
   function renderStockBadge(s) {
     if (!stockBadgeWrap) return;
     stockBadgeWrap.innerHTML = s === 0
@@ -238,6 +266,7 @@ function setupRowInteractions(row) {
   row.querySelectorAll('.js-swatch').forEach(swatch => {
     swatch.addEventListener('click', (e) => {
       e.stopPropagation();
+      stopAutoSlide();
       const idx = parseInt(swatch.dataset.swatchIdx);
       selectedVariantIdx = idx;
 
@@ -267,6 +296,50 @@ function setupRowInteractions(row) {
       qtyInput.value = existingItem ? existingItem.quantity : 0;
       updatePriceDisplay();
     });
+  });
+
+  // ── Auto-slideshow ───────────────────────────────────────────
+  // Only cycle variants with stock + context photos (skip out-of-stock variants)
+  const slideImages = images.filter(img =>
+    img.image_type === 'context' || imgStockFn(img) > 0
+  );
+  if (slideImages.length > 1 && mainImg) {
+    let autoIdx = 0;
+    const tick = () => {
+      autoIdx = (autoIdx + 1) % slideImages.length;
+      const img = slideImages[autoIdx];
+      mainImg.style.transition = 'opacity 0.5s ease';
+      mainImg.style.opacity = '0';
+      setTimeout(() => {
+        mainImg.src = productImgSrc(product.slug, img.filename);
+        requestAnimationFrame(() => requestAnimationFrame(() => { mainImg.style.opacity = '1'; }));
+      }, 500);
+    };
+    autoTimer = setInterval(tick, 3000);
+  }
+
+  // Build context images array once for this product (for lightbox)
+  const contextLightboxImgs = images
+    .filter(img => img.image_type === 'context')
+    .map(img => ({ src: productImgSrc(product.slug, img.filename) }));
+
+  row.querySelectorAll('.js-context-thumb').forEach(thumb => {
+    thumb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      stopAutoSlide();
+      if (mainImg) {
+        mainImg.style.opacity = '0';
+        mainImg.src = thumb.dataset.src;
+        mainImg.onload = () => { mainImg.style.opacity = '1'; };
+        mainImg.style.transition = 'opacity 0.18s ease';
+      }
+      row.querySelectorAll('.js-swatch').forEach(s => s.classList.remove('active'));
+    });
+  });
+
+  row.querySelector('.js-context-lightbox')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.openLightbox(contextLightboxImgs, 0);
   });
 
   // ── Enable / disable stepper controls based on stock ────────

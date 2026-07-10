@@ -290,25 +290,57 @@ window.openPreview = function(productId) {
   if (!overlay || !content) return;
 
   const section = state.activeSection;
-  const images = product.images || [];
+  const images  = product.images || [];
 
-  const slidesHtml = images.length
-    ? images.map((img, i) => `
-        <div class="pv-slide ${i === 0 ? 'active' : ''}" data-idx="${i}">
-          <img src="${productImgSrc(product.slug, img.filename)}" alt="${product.name}">
-        </div>`).join('')
-    : `<div class="pv-slide active"><div class="pv-no-image">Sin imagen</div></div>`;
+  // Initial variant selection (first variant with stock, then first variant, then 0)
+  const firstStockIdx    = images.findIndex((img, i) => img.image_type !== 'context' && getVariantStock(product, i) > 0);
+  const firstVariantIdx  = images.findIndex(img => img.image_type !== 'context');
+  const initialVariantIdx = firstStockIdx >= 0 ? firstStockIdx : (firstVariantIdx >= 0 ? firstVariantIdx : 0);
 
-  const dotsHtml = images.length > 1
-    ? `<div class="pv-dots">${images.map((_, i) =>
-        `<button class="pv-dot ${i === 0 ? 'active' : ''}" data-idx="${i}"></button>`).join('')}</div>`
+  let currentViewIdx     = 0;               // respeta el sort_order configurado en admin
+  let selectedVariantIdx = initialVariantIdx; // primera variante con stock, para el carrito
+
+  const variants = images.filter(img => img.image_type !== 'context');
+
+  // ── Thumbnail strip (all images) ────────────────────────
+  const thumbsHtml = images.map((img, i) => {
+    const isVariant    = img.image_type !== 'context';
+    const isOutOfStock = isVariant && getVariantStock(product, i) === 0;
+    return `
+    <button class="pv-thumb${i === currentViewIdx ? ' active' : ''}${isOutOfStock ? ' pv-thumb--out' : ''}" data-idx="${i}"
+      style="position:relative">
+      <img src="${productImgSrc(product.slug, img.filename)}" alt="" loading="lazy">
+      ${isOutOfStock ? '<span class="pv-thumb-out-label">sin stock</span>' : ''}
+    </button>`;
+  }).join('');
+
+  const initialSrc = images[currentViewIdx]
+    ? productImgSrc(product.slug, images[currentViewIdx].filename)
     : '';
 
-  const navHtml = images.length > 1
-    ? `<button class="pv-nav pv-prev">&#8249;</button>
-       <button class="pv-nav pv-next">&#8250;</button>`
+  // ── Variant swatches for info panel ─────────────────────
+  const activeVariantName = images[selectedVariantIdx]?.color_name || '';
+  const swatchesHtml = variants.length > 0
+    ? `<div class="pv-swatches">
+        <span class="pv-swatches-label">COLOR</span>
+        <div class="pv-swatch-circles">
+          ${images.map((img, i) => {
+            if (img.image_type === 'context') return '';
+            const label = img.color_name || `Var. ${i + 1}`;
+            const hex   = img.color_hex  || '#cccccc';
+            const stock = getVariantStock(product, i);
+            return `<button class="pv-swatch js-pv-swatch${i === selectedVariantIdx ? ' active' : ''}${stock === 0 ? ' pv-swatch--out' : ''}"
+              data-idx="${i}" data-color="${label}"
+              style="background-color:${hex}"
+              title="${label}${stock === 0 ? ' (sin stock)' : ''}"
+              ${stock === 0 ? 'disabled' : ''}></button>`;
+          }).join('')}
+        </div>
+        <span class="pv-swatch-name" id="pv-swatch-name">${activeVariantName}</span>
+      </div>`
     : '';
 
+  // ── Price info ───────────────────────────────────────────
   const sectionPrice = section === 'mayorista' ? product.price_mayo : product.price_pro;
   const sectionLabel = section === 'mayorista' ? 'Precio Mayorista' : 'Precio Profesional';
   const publicPrice  = product.price_public || 0;
@@ -331,23 +363,46 @@ window.openPreview = function(productId) {
     </div>
   `;
 
+  const navHtml = images.length > 1
+    ? `<button class="pv-nav pv-prev">&#8249;</button><button class="pv-nav pv-next">&#8250;</button>`
+    : '';
+
   content.innerHTML = `
-    <div class="pv-gallery">
-      <div class="pv-slides" id="pv-slides">${slidesHtml}</div>
-      ${navHtml}
-      ${dotsHtml}
+    <div class="pv-gallery" id="pv-gallery">
+      ${images.length ? `<div class="pv-thumbs-strip" id="pv-thumbs-strip">${thumbsHtml}</div>` : ''}
+      <div class="pv-main-view">
+        ${initialSrc
+          ? `<img class="pv-main-img" id="pv-main-img" src="${initialSrc}" alt="${product.name}">`
+          : `<div class="pv-no-image">Sin imagen</div>`}
+        ${navHtml}
+      </div>
     </div>
     <div class="pv-info">
       <div class="pv-title-row">
         <h2 class="pv-name">${product.name}</h2>
       </div>
-      ${product.contents ? `<div class="pv-contents">📦 ${product.contents}</div>` : ''}
-      ${product.description ? `<div class="pv-description">${product.description}</div>` : ''}
-
+      ${product.contents    ? `<div class="pv-contents">📦 ${product.contents}</div>`        : ''}
+      ${product.description ? `<div class="pv-description">${product.description}</div>`     : ''}
+      ${swatchesHtml}
       <div class="pv-pricing">
         ${priceInfo}
       </div>
-
+      ${(images.filter(img => img.image_type === 'context').length > 0) ? `
+      <div class="pv-context-section">
+        <div class="pv-context-mini-row">
+          ${images.reduce((acc, img, i) => {
+            if (img.image_type === 'context' && acc.length < 4)
+              acc.push(`<button class="pv-context-mini js-pv-context-mini" data-idx="${i}" title="Ver foto">
+                <img src="${productImgSrc(product.slug, img.filename)}" alt="">
+              </button>`);
+            return acc;
+          }, []).join('')}
+          ${images.filter(img => img.image_type === 'context').length > 4
+            ? `<span class="pv-context-mini-more">+${images.filter(img => img.image_type === 'context').length - 4}</span>`
+            : ''}
+        </div>
+        <button class="pv-context-link" id="pv-context-btn">Ver fotos detalladas</button>
+      </div>` : ''}
       <div class="pv-actions">
         <div class="pv-qty-row" style="position:relative">
           <button class="pv-qty-btn" id="pv-qty-minus">−</button>
@@ -371,32 +426,23 @@ window.openPreview = function(productId) {
   overlay.classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 
-  // Setup gallery navigation
-  let currentSlide = 0;
-  const slides = content.querySelectorAll('.pv-slide');
-  const dots = content.querySelectorAll('.pv-dot');
-
-  // Qty + add elements
+  // ── DOM refs ─────────────────────────────────────────────
   const qtyInput  = content.querySelector('#pv-qty-input');
   const savingsEl = content.querySelector('#pv-savings');
   const addBtn    = content.querySelector('#pv-add-btn');
   const stockMsg  = content.querySelector('#pv-stock-msg');
   const pvQtyRow  = content.querySelector('.pv-qty-row');
-  const pvGallery = content.querySelector('.pv-gallery');
+  const pvGallery = content.querySelector('#pv-gallery');
+  const mainImg   = content.querySelector('#pv-main-img');
 
-  // Returns effective stock for the given slide index
-  const slideStock = (idx) => getVariantStock(product, idx);
+  // ── Stock state (based on selectedVariantIdx; suppressFilter = viewing context photo) ──
+  const updateStockState = (variantIdx, suppressFilter = false) => {
+    const stock = getVariantStock(product, variantIdx);
+    pvGallery?.classList.toggle('pv-gallery--out-of-stock', !suppressFilter && stock === 0);
 
-  // Update all UI that depends on the current slide's stock
-  const updateStockState = (idx) => {
-    const stock = slideStock(idx);
-    pvGallery?.classList.toggle('pv-gallery--out-of-stock', stock === 0);
     const currentQty = parseInt(qtyInput.value) || 1;
-
-    // Clamp qty to available stock
     if (stock > 0 && currentQty > stock) qtyInput.value = stock;
 
-    // Stock message (plain text, no badge)
     if (stock === 0) {
       stockMsg.textContent = 'Sin stock de este color';
       stockMsg.style.color = 'var(--color-danger)';
@@ -407,46 +453,102 @@ window.openPreview = function(productId) {
       stockMsg.textContent = '';
     }
 
-    // Disable add button and qty controls when out of stock
     addBtn.disabled = stock === 0;
-    if (stock === 0) {
-      addBtn.innerHTML = 'Sin stock';
-    } else {
-      addBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
-        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-      </svg> Agregar al carrito`;
-    }
+    addBtn.innerHTML = stock === 0
+      ? 'Sin stock'
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+        </svg> Agregar al carrito`;
+
     qtyInput.disabled = stock === 0;
     content.querySelector('#pv-qty-minus').disabled = stock === 0;
     content.querySelector('#pv-qty-plus').disabled  = stock === 0;
   };
 
+  const updateSavings = () => {
+    const qty = parseInt(qtyInput.value) || 1;
+    const sp  = section === 'mayorista' ? product.price_mayo : product.price_pro;
+    const pub = product.price_public || 0;
+    savingsEl.textContent = pub > sp
+      ? `Ahorrás ${fmt((pub - sp) * qty)} vs precio público`
+      : '';
+  };
+
+  // ── goTo: change the large image shown ───────────────────
   const goTo = (idx) => {
-    currentSlide = (idx + slides.length) % slides.length;
-    slides.forEach((s, i) => s.classList.toggle('active', i === currentSlide));
-    dots.forEach((d, i) => d.classList.toggle('active', i === currentSlide));
-    updateStockState(currentSlide);
+    if (!images.length) return;
+    currentViewIdx = ((idx % images.length) + images.length) % images.length;
+    const img = images[currentViewIdx];
+
+    if (mainImg && img) {
+      mainImg.style.opacity = '0';
+      mainImg.src = productImgSrc(product.slug, img.filename);
+      mainImg.onload = () => { mainImg.style.opacity = '1'; };
+    }
+
+    content.querySelectorAll('.pv-thumb').forEach((t, i) => {
+      t.classList.toggle('active', i === currentViewIdx);
+    });
+
+    // If it's a variant, update selectedVariantIdx and swatches
+    if (img && img.image_type !== 'context') {
+      selectedVariantIdx = currentViewIdx;
+      content.querySelectorAll('.js-pv-swatch').forEach(s => {
+        s.classList.toggle('active', parseInt(s.dataset.idx) === selectedVariantIdx);
+      });
+      const swatchName = content.querySelector('#pv-swatch-name');
+      if (swatchName) swatchName.textContent = img.color_name || '';
+    }
+
+    const isViewingContext = img && img.image_type === 'context';
+    updateStockState(selectedVariantIdx, isViewingContext);
     updateSavings();
   };
 
-  content.querySelector('.pv-prev')?.addEventListener('click', () => goTo(currentSlide - 1));
-  content.querySelector('.pv-next')?.addEventListener('click', () => goTo(currentSlide + 1));
-  dots.forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
+  // Helper: build context-only lightbox array
+  const contextLightboxImgs = () => images
+    .map((im, idx) => im.image_type === 'context'
+      ? { src: productImgSrc(product.slug, im.filename), originalIdx: idx }
+      : null)
+    .filter(Boolean);
 
-  const updateSavings = () => {
-    const qty = parseInt(qtyInput.value) || 1;
-    const sp = section === 'mayorista' ? product.price_mayo : product.price_pro;
-    const pub = product.price_public || 0;
-    if (pub > sp) {
-      savingsEl.textContent = `Ahorrás ${fmt((pub - sp) * qty)} vs precio público`;
-    } else {
-      savingsEl.textContent = '';
-    }
-  };
+  // ── Thumbnail strip clicks ────────────────────────────────
+  content.querySelectorAll('.pv-thumb').forEach((thumb, i) => {
+    thumb.addEventListener('click', (e) => {
+      if (e.target.closest('.ctx-thumb-zoom')) {
+        // Zoom icon → open lightbox
+        const ctxImgs = contextLightboxImgs();
+        const start = ctxImgs.findIndex(c => c.originalIdx === i);
+        window.openLightbox(ctxImgs, start >= 0 ? start : 0);
+      } else {
+        goTo(i); // variant or context → show in gallery
+      }
+    });
+  });
 
+  // ── Prev / Next ──────────────────────────────────────────
+  content.querySelector('.pv-prev')?.addEventListener('click', () => goTo(currentViewIdx - 1));
+  content.querySelector('.pv-next')?.addEventListener('click', () => goTo(currentViewIdx + 1));
+
+  // ── Context mini-thumbnails → change main image ──────────────
+  content.querySelectorAll('.js-pv-context-mini').forEach(btn => {
+    btn.addEventListener('click', () => goTo(parseInt(btn.dataset.idx)));
+  });
+
+  // ── "Ver fotos detalladas" button ────────────────────────────
+  content.querySelector('#pv-context-btn')?.addEventListener('click', () => {
+    window.openLightbox(contextLightboxImgs(), 0);
+  });
+
+  // ── Modal variant swatches ───────────────────────────────
+  content.querySelectorAll('.js-pv-swatch').forEach(swatch => {
+    swatch.addEventListener('click', () => goTo(parseInt(swatch.dataset.idx)));
+  });
+
+  // ── Qty controls ─────────────────────────────────────────
   qtyInput.addEventListener('input', () => {
-    const stock = slideStock(currentSlide);
+    const stock = getVariantStock(product, selectedVariantIdx);
     let qty = parseInt(qtyInput.value) || 1;
     if (stock > 0 && qty > stock) { qtyInput.value = stock; qty = stock; }
     updateSavings();
@@ -458,26 +560,75 @@ window.openPreview = function(productId) {
   });
 
   content.querySelector('#pv-qty-plus')?.addEventListener('click', () => {
-    const stock = slideStock(currentSlide);
+    const stock   = getVariantStock(product, selectedVariantIdx);
     const current = parseInt(qtyInput.value) || 1;
-    if (current >= stock) {
-      window.showStockTooltip(pvQtyRow);
-      return;
-    }
+    if (current >= stock) { window.showStockTooltip(pvQtyRow); return; }
     qtyInput.value = current + 1;
     updateSavings();
   });
 
   addBtn?.addEventListener('click', () => {
     const qty = parseInt(qtyInput.value) || 1;
-    window.addToCart(product.id, qty, section, currentSlide);
+    window.addToCart(product.id, qty, section, selectedVariantIdx);
     closePreview();
   });
 
-  // Start on the first slide that has stock; fall back to 0 if all are out
-  const firstStockSlide = images.findIndex((img, i) => getVariantStock(product, i) > 0);
-  goTo(firstStockSlide >= 0 ? firstStockSlide : 0);
+  // ── Initial render ────────────────────────────────────────
+  goTo(0); // muestra la primera imagen según sort_order
   updateSavings();
+};
+
+// ─── Lightbox (context photos fullscreen) ────────────────────
+window.openLightbox = function(imgs, startIdx) {
+  // Remove any previous instance to avoid listener accumulation
+  document.getElementById('lightbox-overlay')?.remove();
+
+  let currentIdx = ((startIdx || 0) + imgs.length) % imgs.length;
+  const multi = imgs.length > 1;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'lightbox-overlay';
+  overlay.className = 'lightbox-overlay';
+  overlay.innerHTML = `
+    <button class="lightbox-close" aria-label="Cerrar">✕</button>
+    ${multi ? `<button class="lightbox-nav lightbox-prev" aria-label="Anterior">&#8249;</button>` : ''}
+    <div class="lightbox-img-wrap">
+      <img class="lightbox-img" src="${imgs[currentIdx].src}" alt="">
+    </div>
+    ${multi ? `<button class="lightbox-nav lightbox-next" aria-label="Siguiente">&#8250;</button>` : ''}
+    ${multi ? `<div class="lightbox-counter">${currentIdx + 1} / ${imgs.length}</div>` : ''}
+  `;
+  document.body.appendChild(overlay);
+
+  const imgEl   = overlay.querySelector('.lightbox-img');
+  const counter = overlay.querySelector('.lightbox-counter');
+  const prevBtn = overlay.querySelector('.lightbox-prev');
+  const nextBtn = overlay.querySelector('.lightbox-next');
+
+  const goTo = (idx) => {
+    currentIdx = ((idx % imgs.length) + imgs.length) % imgs.length;
+    imgEl.style.opacity = '0';
+    imgEl.src = imgs[currentIdx].src;
+    imgEl.onload = () => { imgEl.style.opacity = '1'; };
+    if (counter) counter.textContent = `${currentIdx + 1} / ${imgs.length}`;
+  };
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+    if (multi && e.key === 'ArrowLeft')  goTo(currentIdx - 1);
+    if (multi && e.key === 'ArrowRight') goTo(currentIdx + 1);
+  };
+
+  overlay.querySelector('.lightbox-close').addEventListener('click', close);
+  prevBtn?.addEventListener('click', () => goTo(currentIdx - 1));
+  nextBtn?.addEventListener('click', () => goTo(currentIdx + 1));
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', onKey);
 };
 
 function closePreview() {

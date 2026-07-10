@@ -322,8 +322,10 @@ function buildContextRow(p, img) {
     <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
       style="width:52px;height:52px;object-fit:cover;border-radius:6px;flex-shrink:0">
     <span style="flex:1;font-size:13px;color:var(--color-text-muted)">Foto de contexto</span>
-    <button class="btn btn-danger btn-sm img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}"
-      title="Eliminar foto" style="flex-shrink:0">✕</button>
+    <button class="img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}"
+      style="flex-shrink:0;opacity:1;position:static;background:#ef4444;color:#fff;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">
+      ✕
+    </button>
   </div>`;
 }
 
@@ -344,7 +346,6 @@ function buildOrderList(p) {
       </span>
       <button type="button" class="btn btn-ghost btn-sm order-up-btn" data-img-id="${img.id}" style="padding:3px 7px">↑</button>
       <button type="button" class="btn btn-ghost btn-sm order-down-btn" data-img-id="${img.id}" style="padding:3px 7px">↓</button>
-      <button type="button" class="btn btn-danger btn-sm img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}" title="Eliminar imagen" style="padding:3px 7px;flex-shrink:0">✕</button>
     </div>`).join('');
 }
 
@@ -475,7 +476,10 @@ function setupEditFormEvents(product) {
 
   if (product) {
     // ── Delete (variantes y contexto) ───────────────────────────
-    document.getElementById('edit-panel-body')?.addEventListener('click', async (e) => {
+    const panelBodyEl = document.getElementById('edit-panel-body');
+    if (panelBodyEl && !panelBodyEl.dataset.delInit) {
+      panelBodyEl.dataset.delInit = '1';
+      panelBodyEl.addEventListener('click', async (e) => {
       if (!e.target.classList.contains('img-thumb-del')) return;
       if (!confirm('¿Eliminar esta imagen? Se borrará permanentemente.')) return;
       const imgId     = e.target.dataset.imgId;
@@ -483,7 +487,7 @@ function setupEditFormEvents(product) {
       try {
         await api(`/admin/products/${productId}/images/${imgId}`, { method: 'DELETE' });
         // Remove the clicked row
-        e.target.closest('.img-color-row, .img-context-row, .order-row')?.remove();
+        e.target.closest('.img-color-row, .img-context-row')?.remove();
         // Also remove corresponding row in variant-list / context-list (if deleted from order section)
         document.querySelector(`#variant-list [data-img-id="${imgId}"], #context-list [data-img-id="${imgId}"]`)?.remove();
         // Rebuild order list from in-memory data
@@ -496,7 +500,8 @@ function setupEditFormEvents(product) {
         }
         toast('Imagen eliminada');
       } catch (err) { toast(err.message, 'error'); }
-    });
+      });
+    }
 
     // ── Eyedropper ──────────────────────────────────────────────
     document.getElementById('variant-list')?.addEventListener('click', (e) => {

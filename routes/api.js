@@ -651,6 +651,7 @@ router.delete('/admin/products/:id/images/:imgId', requireAdmin, async (req, res
     }
 
     await db.prepare(`DELETE FROM product_images WHERE id = ?`).run(req.params.imgId);
+    invalidateCache();
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
