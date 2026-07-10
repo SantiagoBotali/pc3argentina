@@ -8,8 +8,11 @@ function productImgSrc(slug, filename) {
 // ─── Cart Operations ──────────────────────────────────────────
 function getVariantStock(product, variantIdx) {
   const image = product.images && product.images[variantIdx];
+  if (!image) return product.stock || 0;
+  // Context photos don't have per-variant stock — fall back to product.stock
+  if (image.image_type === 'context') return product.stock || 0;
   // null stock means "not set" → use product.stock; 0 or positive means explicit value
-  if (image && image.stock != null) return image.stock;
+  if (image.stock != null) return image.stock;
   return product.stock || 0;
 }
 
@@ -20,9 +23,10 @@ window.addToCart = function(productId, quantity, section, variantIdx, silent) {
 
   const idx = variantIdx != null ? variantIdx : 0;
   const image = product.images && product.images[idx];
-  const colorName = (image && image.color_name)
-    ? image.color_name
-    : (image ? (`Var. ${idx + 1}`) : '');
+  const isContext = image && image.image_type === 'context';
+  const colorName = isContext
+    ? ''
+    : ((image && image.color_name) ? image.color_name : (image ? `Var. ${idx + 1}` : ''));
   const availableStock = getVariantStock(product, idx);
   if (availableStock === 0) return; // never add out-of-stock items
   const cappedQty = Math.min(quantity, availableStock);
