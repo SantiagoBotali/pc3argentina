@@ -238,6 +238,114 @@ async function openEditPanel(productId) {
   setupEditFormEvents(product);
 }
 
+// ─── Image section helpers ────────────────────────────────────
+function buildVariantRow(p, img) {
+  const hex = img.color_hex || '#cccccc';
+  const libSwatches = admin.colors.map(c =>
+    `<button type="button" class="lib-color-swatch" data-hex="${c.hex}" data-name="${c.name}"
+      title="${c.name}"
+      style="width:20px;height:20px;border-radius:50%;background:${c.hex};border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:transform 0.12s,outline 0.12s;outline:2px solid transparent;outline-offset:1px">
+    </button>`
+  ).join('');
+
+  return `
+  <div class="img-color-row" data-img-id="${img.id}" style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:var(--color-surface2);border-radius:8px">
+    <div class="img-edit-thumb" title="Click para cambiar la foto"
+      style="width:52px;height:52px;flex-shrink:0;position:relative;border-radius:6px;overflow:hidden">
+      <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
+        style="width:52px;height:52px;object-fit:cover;display:block">
+      <div class="edit-thumb-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+        <svg class="edit-thumb-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </div>
+      <input type="file" class="img-replace-file" accept="image/*"
+        data-img-id="${img.id}" data-product-id="${p.id}"
+        style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:7px;flex:1;min-width:0">
+      <input type="text" class="form-control img-color-name" data-img-id="${img.id}" data-product-id="${p.id}"
+        value="${(img.color_name || '').replace(/"/g, '&quot;')}"
+        placeholder="Nombre del color (ej: Rojo)" style="font-size:13px;padding:5px 8px">
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="img-color-preview" style="width:28px;height:28px;border-radius:50%;background:${hex};border:1.5px solid rgba(255,255,255,0.2);box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0"></div>
+          <button type="button" class="img-eyedropper-btn" title="Tomar color de la foto"
+            style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;color:var(--color-text-muted)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/>
+              <path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/>
+            </svg>
+          </button>
+          <input type="text" class="form-control img-color-hex-text" data-img-id="${img.id}" data-product-id="${p.id}"
+            value="${hex}" maxlength="7" placeholder="#rrggbb"
+            style="width:80px;font-size:12px;padding:4px 6px;font-family:monospace">
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">${libSwatches}</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:11px;color:var(--color-text-muted);white-space:nowrap">Stock:</label>
+        <input type="number" class="form-control img-color-stock" data-img-id="${img.id}" data-product-id="${p.id}"
+          value="${img.stock || 0}" min="0" style="width:80px;font-size:13px;padding:5px 8px">
+      </div>
+    </div>
+
+    <button class="btn btn-danger btn-sm img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}"
+      title="Eliminar variante" style="flex-shrink:0">✕</button>
+  </div>`;
+}
+
+function buildPendingVariantRow() {
+  return `
+  <div class="img-color-row img-pending-row"
+    style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-surface2);border-radius:8px;border:2px dashed var(--color-border,rgba(255,255,255,0.1))">
+    <label style="width:52px;height:52px;flex-shrink:0;border-radius:6px;background:var(--color-surface3,rgba(255,255,255,0.05));display:flex;align-items:center;justify-content:center;cursor:pointer;flex-direction:column;gap:4px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <input type="file" class="pending-file-input" accept="image/*" style="display:none">
+    </label>
+    <span style="font-size:13px;color:var(--color-text-muted)">Seleccioná una foto para la nueva variante</span>
+  </div>`;
+}
+
+function buildContextRow(p, img) {
+  return `
+  <div class="img-context-row" data-img-id="${img.id}"
+    style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-surface2);border-radius:8px">
+    <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
+      style="width:52px;height:52px;object-fit:cover;border-radius:6px;flex-shrink:0">
+    <span style="flex:1;font-size:13px;color:var(--color-text-muted)">Foto de contexto</span>
+    <button class="btn btn-danger btn-sm img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}"
+      title="Eliminar foto" style="flex-shrink:0">✕</button>
+  </div>`;
+}
+
+function buildOrderList(p) {
+  const images = p.images || [];
+  if (!images.length) return '<p style="font-size:13px;color:var(--color-text-muted)">Aún no hay imágenes.</p>';
+  return images.map((img) => `
+    <div class="order-row" data-img-id="${img.id}" draggable="true"
+      style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--color-surface2);border-radius:6px;cursor:default;user-select:none">
+      <span class="drag-handle" style="cursor:grab;color:var(--color-text-muted);font-size:18px;line-height:1;flex-shrink:0">⠿</span>
+      <img src="${productImgSrc(p.slug, img.filename)}" alt=""
+        style="width:36px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0">
+      <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        ${img.image_type === 'context'
+          ? '📷 Foto de contexto'
+          : `🎨 Variante${img.color_name ? ' — ' + img.color_name : ''}`}
+      </span>
+      <button type="button" class="btn btn-ghost btn-sm order-up-btn" data-img-id="${img.id}" style="padding:3px 7px">↑</button>
+      <button type="button" class="btn btn-ghost btn-sm order-down-btn" data-img-id="${img.id}" style="padding:3px 7px">↓</button>
+    </div>`).join('');
+}
+
 function buildEditForm(p) {
   return `
     <!-- Basic info -->
@@ -284,11 +392,11 @@ function buildEditForm(p) {
       </div>
       <div class="form-group">
         <label class="form-label">Stock disponible
-          ${p && p.images && p.images.length > 0
+          ${p && p.images && p.images.some(img => img.image_type !== 'context')
             ? '<span style="font-size:11px;color:var(--color-text-muted)"> (por color)</span>'
             : ''}
         </label>
-        ${p && p.images && p.images.length > 0
+        ${p && p.images && p.images.some(img => img.image_type !== 'context')
           ? `<button type="button" class="btn btn-secondary btn-sm" id="btn-manage-stock" style="margin-top:2px">
                📦 Gestionar stock por color
              </button>`
@@ -307,98 +415,26 @@ function buildEditForm(p) {
 
     <!-- Images -->
     ${p ? `
-    <div class="section-divider" style="margin-top:16px">Imágenes y colores</div>
+    <div class="section-divider" style="margin-top:16px">🎨 Variantes de color</div>
 
-    <div id="img-color-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
-      ${(p.images || []).map((img) => {
-        const hex = img.color_hex || '#cccccc';
-        const libSwatches = admin.colors.map(c =>
-          `<button type="button" class="lib-color-swatch" data-hex="${c.hex}" data-name="${c.name}"
-            title="${c.name}"
-            style="width:20px;height:20px;border-radius:50%;background:${c.hex};border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:transform 0.12s,outline 0.12s;outline:2px solid transparent;outline-offset:1px">
-          </button>`
-        ).join('');
-        return `
-        <div class="img-color-row" data-img-id="${img.id}" style="display:flex;align-items:flex-start;gap:10px;padding:10px;background:var(--color-surface2);border-radius:8px">
-
-          <!-- Thumbnail: click to replace photo -->
-          <div class="img-edit-thumb" title="Click para cambiar la foto"
-            style="width:52px;height:52px;flex-shrink:0;position:relative;border-radius:6px;overflow:hidden">
-            <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
-              style="width:52px;height:52px;object-fit:cover;display:block">
-            <div class="edit-thumb-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
-              <svg class="edit-thumb-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
-            </div>
-            <input type="file" class="img-replace-file" accept="image/*"
-              data-img-id="${img.id}" data-product-id="${p.id}"
-              style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%">
-          </div>
-
-          <!-- Fields -->
-          <div style="display:flex;flex-direction:column;gap:7px;flex:1;min-width:0">
-            <input type="text"
-              class="form-control img-color-name"
-              data-img-id="${img.id}"
-              data-product-id="${p.id}"
-              value="${(img.color_name || '').replace(/"/g, '&quot;')}"
-              placeholder="Nombre del color (ej: Rojo)"
-              style="font-size:13px;padding:5px 8px">
-
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <div style="display:flex;align-items:center;gap:6px">
-                <!-- Color preview circle (shows current color) -->
-                <div class="img-color-preview" style="width:28px;height:28px;border-radius:50%;background:${hex};border:1.5px solid rgba(255,255,255,0.2);box-shadow:0 1px 4px rgba(0,0,0,0.3);flex-shrink:0" title="Color actual"></div>
-                <!-- Eyedropper: sample color from the variant photo -->
-                <button type="button" class="img-eyedropper-btn" title="Tomar color de la foto"
-                  style="width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.15);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0;color:var(--color-text-muted)">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                    <path d="m2 22 1-1h3l9-9"/><path d="M3 21v-3l9-9"/>
-                    <path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"/>
-                  </svg>
-                </button>
-                <input type="text"
-                  class="form-control img-color-hex-text"
-                  data-img-id="${img.id}"
-                  data-product-id="${p.id}"
-                  value="${hex}"
-                  maxlength="7"
-                  placeholder="#rrggbb"
-                  style="width:80px;font-size:12px;padding:4px 6px;font-family:monospace">
-              </div>
-              <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">${libSwatches}</div>
-            </div>
-
-            <div style="display:flex;align-items:center;gap:6px">
-              <label style="font-size:11px;color:var(--color-text-muted);white-space:nowrap">Stock:</label>
-              <input type="number"
-                class="form-control img-color-stock"
-                data-img-id="${img.id}"
-                data-product-id="${p.id}"
-                value="${img.stock || 0}"
-                min="0"
-                style="width:80px;font-size:13px;padding:5px 8px">
-            </div>
-          </div>
-
-          <!-- Delete variant -->
-          <button class="btn btn-danger btn-sm img-thumb-del"
-            data-img-id="${img.id}"
-            data-product-id="${p.id}"
-            title="Eliminar variante"
-            style="flex-shrink:0">✕</button>
-        </div>`;
-      }).join('')}
+    <div id="variant-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+      ${(p.images || []).filter(img => img.image_type !== 'context').map(img => buildVariantRow(p, img)).join('')}
     </div>
+    <button type="button" class="btn btn-secondary btn-sm" id="btn-add-variant">＋ Nueva variante</button>
 
-    <div class="upload-zone" id="upload-zone">
-      <div style="font-size:24px;margin-bottom:6px">📁</div>
-      <div>Arrastrá imágenes aquí o <strong>hacé click para seleccionar</strong></div>
-      <div class="text-xs text-muted mt-1">PNG, JPG, WEBP — máx. 5MB cada una</div>
+    <div class="section-divider" style="margin-top:20px">📷 Fotos de contexto</div>
+
+    <div id="context-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+      ${(p.images || []).filter(img => img.image_type === 'context').map(img => buildContextRow(p, img)).join('')}
     </div>
-    <input type="file" id="img-file-input" accept="image/*" multiple style="display:none">
+    <input type="file" id="ctx-file-input" accept="image/*" multiple style="display:none">
+    <button type="button" class="btn btn-secondary btn-sm" id="btn-add-context">＋ Agregar foto de contexto</button>
+
+    <div class="section-divider" style="margin-top:20px">🔀 Orden de visualización</div>
+    <p style="font-size:12px;color:var(--color-text-muted);margin:0 0 8px">Arrastrá o usá las flechas para definir el orden en que aparecen en el catálogo.</p>
+    <div id="order-list" style="display:flex;flex-direction:column;gap:6px">
+      ${buildOrderList(p)}
+    </div>
     ` : ''}
 
     <div id="ef-error" class="form-error" style="display:none;margin-top:10px"></div>
@@ -436,21 +472,30 @@ function setupEditFormEvents(product) {
   };
 
   if (product) {
-    // Image delete
-    document.getElementById('img-color-list')?.addEventListener('click', async (e) => {
+    // ── Delete (variantes y contexto) ───────────────────────────
+    document.getElementById('edit-panel-body')?.addEventListener('click', async (e) => {
       if (!e.target.classList.contains('img-thumb-del')) return;
-      if (!confirm('¿Eliminar esta variante? Se borrará la imagen y su información de color/stock.')) return;
-      const imgId = e.target.dataset.imgId;
+      const label = e.target.closest('.img-context-row') ? 'foto de contexto' : 'variante';
+      if (!confirm(`¿Eliminar esta ${label}? Se borrará la imagen permanentemente.`)) return;
+      const imgId     = e.target.dataset.imgId;
       const productId = e.target.dataset.productId;
       try {
         await api(`/admin/products/${productId}/images/${imgId}`, { method: 'DELETE' });
-        e.target.closest('.img-color-row').remove();
+        e.target.closest('.img-color-row, .img-context-row')?.remove();
+        // Rebuild order list from in-memory data
+        const prod = admin.products.find(p => p.id === parseInt(productId));
+        if (prod) {
+          prod.images = prod.images.filter(i => i.id !== parseInt(imgId));
+          const orderEl = document.getElementById('order-list');
+          if (orderEl) orderEl.innerHTML = buildOrderList(prod);
+          setupOrderDragDrop(parseInt(productId));
+        }
         toast('Imagen eliminada');
       } catch (err) { toast(err.message, 'error'); }
     });
 
-    // Eyedropper button → sample color from variant photo
-    document.getElementById('img-color-list')?.addEventListener('click', (e) => {
+    // ── Eyedropper ──────────────────────────────────────────────
+    document.getElementById('variant-list')?.addEventListener('click', (e) => {
       if (e.target.closest('.img-eyedropper-btn')) {
         const row   = e.target.closest('.img-color-row');
         const imgEl = row?.querySelector('.img-edit-thumb img');
@@ -462,7 +507,7 @@ function setupEditFormEvents(product) {
           if (hexText) { hexText.value = hex; hexText.dispatchEvent(new Event('change', { bubbles: true })); }
         });
       }
-      // Library swatch click → set color name + hex
+      // Library swatch click
       if (e.target.classList.contains('lib-color-swatch')) {
         const hex       = e.target.dataset.hex;
         const name      = e.target.dataset.name;
@@ -478,17 +523,17 @@ function setupEditFormEvents(product) {
       }
     });
 
-    // Color name and stock autosave
-    document.getElementById('img-color-list')?.addEventListener('change', async (e) => {
+    // ── Autosave color name / hex / stock ────────────────────────
+    document.getElementById('variant-list')?.addEventListener('change', async (e) => {
       const isColorName = e.target.classList.contains('img-color-name');
       const isStock     = e.target.classList.contains('img-color-stock');
       const isHexText   = e.target.classList.contains('img-color-hex-text');
       if (!isColorName && !isStock && !isHexText) return;
 
-      const imgId = e.target.dataset.imgId;
+      const imgId     = e.target.dataset.imgId;
       const productId = e.target.dataset.productId;
-      const row = e.target.closest('.img-color-row');
-      if (!row) return;
+      const row       = e.target.closest('.img-color-row');
+      if (!row || row.classList.contains('img-pending-row')) return;
 
       if (isHexText) {
         const val = e.target.value.trim();
@@ -500,53 +545,44 @@ function setupEditFormEvents(product) {
 
       const colorName = row.querySelector('.img-color-name').value.trim();
       const colorHex  = row.querySelector('.img-color-hex-text').value.trim();
-      const stock = parseInt(row.querySelector('.img-color-stock').value) || 0;
+      const stock     = parseInt(row.querySelector('.img-color-stock').value) || 0;
 
       try {
         await api(`/admin/products/${productId}/images/${imgId}`, {
           method: 'PUT',
           body: { color_name: colorName, color_hex: colorHex, stock }
         });
-        // Update in-memory data
         const prod = admin.products.find(p => p.id === parseInt(productId));
         if (prod) {
           const img = (prod.images || []).find(i => i.id === parseInt(imgId));
           if (img) { img.color_name = colorName; img.color_hex = colorHex; img.stock = stock; }
+          // Refresh order list labels
+          const orderEl = document.getElementById('order-list');
+          if (orderEl) orderEl.innerHTML = buildOrderList(prod);
+          setupOrderDragDrop(parseInt(productId));
         }
       } catch (err) { toast(err.message, 'error'); }
     });
 
-    // Variant photo replacement
-    document.getElementById('img-color-list')?.addEventListener('change', async (e) => {
+    // ── Variant photo replacement ────────────────────────────────
+    document.getElementById('variant-list')?.addEventListener('change', async (e) => {
       if (!e.target.classList.contains('img-replace-file')) return;
-      const file = e.target.files[0];
+      const file      = e.target.files[0];
       if (!file) return;
-
       const imgId     = e.target.dataset.imgId;
       const productId = e.target.dataset.productId;
       const row       = e.target.closest('.img-color-row');
       const thumbImg  = row?.querySelector('.img-edit-thumb img');
       const originalSrc = thumbImg?.src;
-
       if (thumbImg) thumbImg.src = URL.createObjectURL(file);
-
       const formData = new FormData();
       formData.append('image', file);
-
       try {
         const res = await fetch(`/api/admin/products/${productId}/images/${imgId}/file`, {
           method: 'PUT',
           body: formData,
         });
-        if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `Error ${res.status}`); }
-        const updated = await res.json();
-
-        const prod = admin.products.find(p => p.id === parseInt(productId));
-        if (prod) {
-          const img = (prod.images || []).find(i => i.id === parseInt(imgId));
-          if (img) img.filename = updated.filename;
-        }
-        if (thumbImg) thumbImg.src = updated.filename.startsWith('http') ? updated.filename : `/productos/${prod?.slug}/${updated.filename}`;
+        if (!res.ok) throw new Error('Error subiendo imagen');
         toast('Foto actualizada');
       } catch (err) {
         if (thumbImg && originalSrc) thumbImg.src = originalSrc;
@@ -555,18 +591,57 @@ function setupEditFormEvents(product) {
       e.target.value = '';
     });
 
-    // Image upload
-    const zone = document.getElementById('upload-zone');
-    const fileInput = document.getElementById('img-file-input');
-    zone?.addEventListener('click', () => fileInput.click());
-    zone?.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
-    zone?.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-    zone?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      zone.classList.remove('dragover');
-      uploadImages(product.id, e.dataTransfer.files);
+    // ── Nueva variante (pending row) ─────────────────────────────
+    document.getElementById('btn-add-variant')?.addEventListener('click', () => {
+      const list = document.getElementById('variant-list');
+      if (!list || list.querySelector('.img-pending-row')) return;
+      list.insertAdjacentHTML('beforeend', buildPendingVariantRow());
+      list.querySelector('.img-pending-row .pending-file-input')?.click();
     });
-    fileInput?.addEventListener('change', () => uploadImages(product.id, fileInput.files));
+
+    // Pending file input → upload variant
+    document.getElementById('variant-list')?.addEventListener('change', async (e) => {
+      if (!e.target.classList.contains('pending-file-input')) return;
+      const file = e.target.files[0];
+      if (!file) return;
+      await uploadSingleImage(product.id, file, 'variant');
+    });
+
+    // ── Agregar foto de contexto ─────────────────────────────────
+    document.getElementById('btn-add-context')?.addEventListener('click', () => {
+      document.getElementById('ctx-file-input')?.click();
+    });
+
+    document.getElementById('ctx-file-input')?.addEventListener('change', async (e) => {
+      const files = e.target.files;
+      if (!files || !files.length) return;
+      for (const file of Array.from(files)) {
+        await uploadSingleImage(product.id, file, 'context');
+      }
+      e.target.value = '';
+    });
+
+    // ── Orden: flechas y drag & drop ────────────────────────────
+    setupOrderDragDrop(product.id);
+
+    document.getElementById('order-list')?.addEventListener('click', async (e) => {
+      const upBtn   = e.target.closest('.order-up-btn');
+      const downBtn = e.target.closest('.order-down-btn');
+      if (!upBtn && !downBtn) return;
+
+      const list = document.getElementById('order-list');
+      const row  = (upBtn || downBtn).closest('.order-row');
+      const rows = [...list.querySelectorAll('.order-row')];
+      const idx  = rows.indexOf(row);
+
+      if (upBtn && idx > 0) {
+        list.insertBefore(row, rows[idx - 1]);
+        await saveNewOrder(product.id);
+      } else if (downBtn && idx < rows.length - 1) {
+        list.insertBefore(rows[idx + 1], row);
+        await saveNewOrder(product.id);
+      }
+    });
   }
 }
 
@@ -591,24 +666,96 @@ async function addTier(productId, section) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
-async function uploadImages(productId, files) {
-  if (!files || !files.length) return;
+async function uploadSingleImage(productId, file, imageType) {
   const formData = new FormData();
-  for (const f of files) formData.append('images', f);
-
+  formData.append('images', file);
+  formData.append('image_type', imageType);
   try {
-    const zone = document.getElementById('upload-zone');
-    if (zone) zone.textContent = 'Subiendo...';
-    await fetch(`/api/admin/products/${productId}/images`, {
+    const res = await fetch(`/api/admin/products/${productId}/images`, {
       method: 'POST',
-      body: formData
-    }).then(r => { if (!r.ok) throw new Error('Error subiendo imágenes'); return r.json(); });
-
-    toast('Imágenes subidas');
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Error subiendo imagen');
+    }
+    toast('Imagen subida');
     const products = await api('/admin/products');
     admin.products = products;
     openEditPanel(productId);
-  } catch (e) { toast(e.message, 'error'); }
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function saveNewOrder(productId) {
+  const list = document.getElementById('order-list');
+  if (!list) return;
+  const rows  = [...list.querySelectorAll('.order-row')];
+  const order = rows.map((row, i) => ({ id: parseInt(row.dataset.imgId), sort_order: i }));
+  try {
+    await api(`/admin/products/${productId}/images/reorder`, { method: 'PUT', body: { order } });
+    // Sync in-memory sort_order
+    const prod = admin.products.find(p => p.id === productId);
+    if (prod && prod.images) {
+      const byId = {};
+      prod.images.forEach(img => { byId[img.id] = img; });
+      prod.images = order.map(o => byId[o.id]).filter(Boolean);
+      prod.images.forEach((img, i) => { img.sort_order = i; });
+    }
+  } catch (err) {
+    toast('Error guardando orden: ' + err.message, 'error');
+  }
+}
+
+function setupOrderDragDrop(productId) {
+  const list = document.getElementById('order-list');
+  if (!list) return;
+  let dragSrc = null;
+
+  list.addEventListener('dragstart', (e) => {
+    const row = e.target.closest('.order-row');
+    if (!row) return;
+    dragSrc = row;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => { if (dragSrc) dragSrc.style.opacity = '0.4'; }, 0);
+  });
+
+  list.addEventListener('dragend', () => {
+    if (dragSrc) { dragSrc.style.opacity = '1'; dragSrc = null; }
+    list.querySelectorAll('.order-row').forEach(r => r.classList.remove('drag-over'));
+  });
+
+  list.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const row = e.target.closest('.order-row');
+    list.querySelectorAll('.order-row').forEach(r => r.classList.remove('drag-over'));
+    if (row && row !== dragSrc) row.classList.add('drag-over');
+  });
+
+  list.addEventListener('dragleave', (e) => {
+    if (!list.contains(e.relatedTarget)) {
+      list.querySelectorAll('.order-row').forEach(r => r.classList.remove('drag-over'));
+    }
+  });
+
+  list.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const targetRow = e.target.closest('.order-row');
+    list.querySelectorAll('.order-row').forEach(r => r.classList.remove('drag-over'));
+    if (!targetRow || !dragSrc || targetRow === dragSrc) return;
+
+    const rows   = [...list.querySelectorAll('.order-row')];
+    const srcIdx = rows.indexOf(dragSrc);
+    const tgtIdx = rows.indexOf(targetRow);
+    if (srcIdx < tgtIdx) {
+      list.insertBefore(dragSrc, targetRow.nextSibling);
+    } else {
+      list.insertBefore(dragSrc, targetRow);
+    }
+    await saveNewOrder(productId);
+  });
 }
 
 async function saveProduct(existingProduct) {
@@ -676,10 +823,11 @@ function openStockModal(productId) {
 
   title.textContent = `Stock — ${product.name}`;
 
-  const hasVariants = product.images && product.images.length > 0;
+  const variantImages = (product.images || []).filter(img => img.image_type !== 'context');
+  const hasVariants   = variantImages.length > 0;
 
   if (hasVariants) {
-    body.innerHTML = product.images.map(img => `
+    body.innerHTML = variantImages.map(img => `
       <div class="stock-modal-row" data-img-id="${img.id}">
         <img src="${productImgSrc(product.slug, img.filename)}" alt="${img.color_name || img.filename}" loading="lazy">
         <span class="stock-modal-color-name">${img.color_name || img.filename}</span>

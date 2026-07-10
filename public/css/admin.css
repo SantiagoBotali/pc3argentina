@@ -574,3 +574,9 @@
 /* ─── Orders ────────────────────────────────────────────────── */
 .order-row-pending td { background: color-mix(in srgb, #f59e0b 6%, transparent); }
 .order-row-pending:hover td { background: color-mix(in srgb, #f59e0b 12%, transparent); }
+
+/* ─── Order drag & drop ─────────────────────── */
+.order-row.drag-over {
+  outline: 2px solid var(--color-primary, #6366f1);
+  background: var(--color-surface3, rgba(255,255,255,0.08)) !important;
+}
