@@ -4,3 +4,4 @@ db/
 productos/
 *.sqlite
 *.db
+.claude/worktrees/

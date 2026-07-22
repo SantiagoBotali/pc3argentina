@@ -319,8 +319,10 @@ function buildContextRow(p, img) {
   return `
   <div class="img-context-row" data-img-id="${img.id}"
     style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-surface2);border-radius:8px">
-    <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
-      style="width:52px;height:52px;object-fit:cover;border-radius:6px;flex-shrink:0">
+    <div style="width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0">
+      <img src="${productImgSrc(p.slug, img.filename)}" alt="${img.filename}"
+        style="width:100%;height:100%;object-fit:cover;display:block">
+    </div>
     <span style="flex:1;font-size:13px;color:var(--color-text-muted)">Foto de contexto</span>
     <button class="img-thumb-del" data-img-id="${img.id}" data-product-id="${p.id}"
       style="flex-shrink:0;opacity:1;position:static;background:#ef4444;color:#fff;border:none;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;line-height:1">
