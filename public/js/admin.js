@@ -1393,29 +1393,49 @@ function kpiCard(label, value, badgeClass) {
 
 function buildDashHTML(d) {
   const { kpis, by_section, by_delivery, top_clients, top_localidades,
-          top_products, low_products, top_variants, top_pairs } = d;
+          top_products, low_products, top_variants, top_pairs,
+          orders_over_time = [], time_granularity = 'day' } = d;
 
-  // Section distribution
   const sectionMap = {};
   by_section.forEach(s => { sectionMap[s.section] = s; });
-  const proOrders = parseInt(sectionMap.profesional?.orders || 0);
-  const mayOrders = parseInt(sectionMap.mayorista?.orders  || 0);
+  const proOrders = parseInt(sectionMap.profesional?.orders  || 0);
+  const mayOrders = parseInt(sectionMap.mayorista?.orders    || 0);
   const proRev    = parseInt(sectionMap.profesional?.revenue || 0);
-  const mayRev    = parseInt(sectionMap.mayorista?.revenue  || 0);
+  const mayRev    = parseInt(sectionMap.mayorista?.revenue   || 0);
 
-  // Delivery distribution
-  const delivMap = {};
+  const delivMap  = {};
   by_delivery.forEach(s => { delivMap[s.delivery] = parseInt(s.orders); });
   const totalDeliv = (delivMap.retiro || 0) + (delivMap.envio || 0);
   const pctRetiro  = totalDeliv ? Math.round((delivMap.retiro || 0) / totalDeliv * 100) : 0;
   const pctEnvio   = totalDeliv ? Math.round((delivMap.envio  || 0) / totalDeliv * 100) : 0;
 
-  // Total units for % in top products
   const totalUnits = top_products.reduce((s, p) => s + parseInt(p.units), 0);
+  const noData     = '<p class="dash-empty">Sin datos en este período</p>';
 
-  const noData = '<p class="dash-empty">Sin datos en este período</p>';
+  // Helper: card with Gráfico/Tabla tabs
+  function tabCard(title, cardId, chartH, hasNoData, tableHtml) {
+    const chartPane = hasNoData
+      ? noData
+      : `<div style="position:relative;height:${chartH}px"><canvas id="chart-${cardId}"></canvas></div>`;
+    return `
+      <div class="dash-table-card">
+        <div class="dash-card-header">
+          <h4 class="dash-table-title">${title}</h4>
+          <div class="dash-tabs">
+            <button class="dash-tab active" data-tab="chart" data-card="${cardId}">Gráfico</button>
+            <button class="dash-tab" data-tab="table" data-card="${cardId}">Tabla</button>
+          </div>
+        </div>
+        <div class="dash-tab-pane" data-pane="chart" data-card="${cardId}">${chartPane}</div>
+        <div class="dash-tab-pane hidden" data-pane="table" data-card="${cardId}">${tableHtml}</div>
+      </div>`;
+  }
+
+  // Helper: dynamic height for horizontal bar charts
+  function barH(n) { return Math.max(180, n * 34 + 40); }
 
   return `
+    <!-- KPI Cards -->
     <div class="dash-kpi-grid">
       ${kpiCard('Total pedidos',        kpis.total_orders,                '')}
       ${kpiCard('Ingresos confirmados', fmtPrice(kpis.confirmed_revenue), '')}
@@ -1425,135 +1445,454 @@ function buildDashHTML(d) {
       ${kpiCard('Cancelados',           kpis.cancelled_orders,            'badge-err')}
     </div>
 
-    <div class="dash-dist-grid">
-      <div class="dash-dist-card">
-        <div class="dash-dist-label">Profesional</div>
-        <div class="dash-dist-val">${proOrders} pedidos</div>
-        <div class="dash-dist-sub">${fmtPrice(proRev)}</div>
+    <!-- Evolución temporal (no table tab — chart only) -->
+    <div class="dash-table-card" style="margin-bottom:20px">
+      <div class="dash-card-header">
+        <h4 class="dash-table-title">Evolución temporal</h4>
+        ${orders_over_time.length > 0
+          ? `<span class="dash-granularity">${time_granularity === 'day' ? 'por día' : 'por mes'}</span>`
+          : ''}
       </div>
-      <div class="dash-dist-card">
-        <div class="dash-dist-label">Mayorista</div>
-        <div class="dash-dist-val">${mayOrders} pedidos</div>
-        <div class="dash-dist-sub">${fmtPrice(mayRev)}</div>
-      </div>
-      <div class="dash-dist-card">
-        <div class="dash-dist-label">Retiro en local</div>
-        <div class="dash-dist-val">${delivMap.retiro || 0} pedidos</div>
-        <div class="dash-dist-sub">${pctRetiro}% del total</div>
-      </div>
-      <div class="dash-dist-card">
-        <div class="dash-dist-label">Envío a domicilio</div>
-        <div class="dash-dist-val">${delivMap.envio || 0} pedidos</div>
-        <div class="dash-dist-sub">${pctEnvio}% del total</div>
-      </div>
+      ${orders_over_time.length === 0
+        ? '<p class="dash-empty">Sin pedidos confirmados en este período</p>'
+        : '<div style="position:relative;height:280px"><canvas id="chart-timeline"></canvas></div>'}
     </div>
 
+    <!-- Distribution: section + delivery -->
     <div class="dash-tables-grid">
-      <div class="dash-table-card">
-        <h4 class="dash-table-title">Clientes más frecuentes</h4>
-        ${top_clients.length === 0 ? noData : `
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>Cliente</th><th>Teléfono</th><th>Sección</th><th>Pedidos</th><th>Total</th></tr></thead>
-              <tbody>${top_clients.map(c => `
-                <tr>
-                  <td>${esc(c.client_name) || '—'}</td>
-                  <td style="font-size:12px;color:var(--color-text-muted)">${esc(c.client_phone) || '—'}</td>
-                  <td><span class="dash-badge">${esc(c.section) || '—'}</span></td>
-                  <td>${c.orders}</td>
-                  <td>${fmtPrice(c.total)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`}
-      </div>
-      <div class="dash-table-card">
-        <h4 class="dash-table-title">Por localidad</h4>
-        ${top_localidades.length === 0 ? noData : `
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>Localidad</th><th>Pedidos</th><th>Total</th></tr></thead>
-              <tbody>${top_localidades.map(l => `
-                <tr>
-                  <td>${esc(l.client_localidad) || '—'}</td>
-                  <td>${l.orders}</td>
-                  <td>${fmtPrice(l.total)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`}
-      </div>
+      ${tabCard(
+        'Por tipo de cliente', 'section', 220,
+        proOrders === 0 && mayOrders === 0,
+        `<div class="dash-dist-mini">
+          <div class="dash-dist-card">
+            <div class="dash-dist-label">Profesional</div>
+            <div class="dash-dist-val">${proOrders} pedidos</div>
+            <div class="dash-dist-sub">${fmtPrice(proRev)}</div>
+          </div>
+          <div class="dash-dist-card">
+            <div class="dash-dist-label">Mayorista</div>
+            <div class="dash-dist-val">${mayOrders} pedidos</div>
+            <div class="dash-dist-sub">${fmtPrice(mayRev)}</div>
+          </div>
+        </div>`
+      )}
+      ${tabCard(
+        'Por tipo de entrega', 'delivery', 220,
+        totalDeliv === 0,
+        `<div class="dash-dist-mini">
+          <div class="dash-dist-card">
+            <div class="dash-dist-label">Retiro en local</div>
+            <div class="dash-dist-val">${delivMap.retiro || 0} pedidos</div>
+            <div class="dash-dist-sub">${pctRetiro}% del total</div>
+          </div>
+          <div class="dash-dist-card">
+            <div class="dash-dist-label">Envío a domicilio</div>
+            <div class="dash-dist-val">${delivMap.envio || 0} pedidos</div>
+            <div class="dash-dist-sub">${pctEnvio}% del total</div>
+          </div>
+        </div>`
+      )}
     </div>
 
+    <!-- Clients + Localidades -->
     <div class="dash-tables-grid">
-      <div class="dash-table-card">
-        <h4 class="dash-table-title">Productos más vendidos</h4>
-        ${top_products.length === 0 ? noData : `
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>Producto</th><th>Unidades</th><th>Ingresos</th><th>%</th></tr></thead>
-              <tbody>${top_products.map(p => `
-                <tr>
-                  <td>${esc(p.product_name)}</td>
-                  <td>${p.units}</td>
-                  <td>${fmtPrice(p.revenue)}</td>
-                  <td style="color:var(--color-text-muted)">${totalUnits > 0 ? Math.round(parseInt(p.units) / totalUnits * 100) : 0}%</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`}
-      </div>
-      <div class="dash-table-card">
-        <h4 class="dash-table-title">Productos menos vendidos</h4>
-        ${low_products.length === 0 ? noData : `
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>Producto</th><th>Unidades vendidas</th><th>Stock actual</th></tr></thead>
-              <tbody>${low_products.map(p => `
-                <tr>
-                  <td>${esc(p.product_name)}</td>
-                  <td>${p.units}</td>
-                  <td>${p.stock}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`}
-      </div>
+      ${tabCard(
+        'Clientes más frecuentes', 'clients', barH(top_clients.length),
+        top_clients.length === 0,
+        top_clients.length === 0 ? noData : `
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr><th>Cliente</th><th>Teléfono</th><th>Sección</th><th>Pedidos</th><th>Total</th></tr></thead>
+            <tbody>${top_clients.map(c => `
+              <tr>
+                <td>${esc(c.client_name) || '—'}</td>
+                <td style="font-size:12px;color:var(--color-text-muted)">${esc(c.client_phone) || '—'}</td>
+                <td><span class="dash-badge">${esc(c.section) || '—'}</span></td>
+                <td>${c.orders}</td>
+                <td>${fmtPrice(c.total)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`
+      )}
+      ${tabCard(
+        'Por localidad', 'localidades', barH(top_localidades.length),
+        top_localidades.length === 0,
+        top_localidades.length === 0 ? noData : `
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr><th>Localidad</th><th>Pedidos</th><th>Total</th></tr></thead>
+            <tbody>${top_localidades.map(l => `
+              <tr>
+                <td>${esc(l.client_localidad) || '—'}</td>
+                <td>${l.orders}</td>
+                <td>${fmtPrice(l.total)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`
+      )}
     </div>
 
+    <!-- Top / Low products -->
     <div class="dash-tables-grid">
-      <div class="dash-table-card">
-        <h4 class="dash-table-title">Variantes más pedidas</h4>
-        ${top_variants.length === 0 ? noData : `
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>Producto</th><th>Color</th><th>Unidades</th></tr></thead>
-              <tbody>${top_variants.map(v => `
-                <tr>
-                  <td>${esc(v.product_name)}</td>
-                  <td>${esc(v.color_name)}</td>
-                  <td>${v.units}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`}
-      </div>
-      <div class="dash-table-card">
-        <h4 class="dash-table-title">Pares más frecuentes</h4>
-        ${top_pairs.length === 0 ? noData : `
-          <div class="admin-table-wrap">
-            <table class="admin-table">
-              <thead><tr><th>Producto A</th><th>Producto B</th><th>Veces juntos</th></tr></thead>
-              <tbody>${top_pairs.map(p => `
-                <tr>
-                  <td>${esc(p.product_a)}</td>
-                  <td>${esc(p.product_b)}</td>
-                  <td>${p.count}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`}
-      </div>
+      ${tabCard(
+        'Productos más vendidos', 'top-products', barH(top_products.length),
+        top_products.length === 0,
+        top_products.length === 0 ? noData : `
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr><th>Producto</th><th>Unidades</th><th>Ingresos</th><th>%</th></tr></thead>
+            <tbody>${top_products.map(p => `
+              <tr>
+                <td>${esc(p.product_name)}</td>
+                <td>${p.units}</td>
+                <td>${fmtPrice(p.revenue)}</td>
+                <td style="color:var(--color-text-muted)">${totalUnits > 0 ? Math.round(parseInt(p.units) / totalUnits * 100) : 0}%</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`
+      )}
+      ${tabCard(
+        'Productos menos vendidos', 'low-products', barH(low_products.length),
+        low_products.length === 0,
+        low_products.length === 0 ? noData : `
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr><th>Producto</th><th>Unidades vendidas</th><th>Stock actual</th></tr></thead>
+            <tbody>${low_products.map(p => `
+              <tr>
+                <td>${esc(p.product_name)}</td>
+                <td>${p.units}</td>
+                <td>${p.stock}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`
+      )}
+    </div>
+
+    <!-- Variants + Pairs -->
+    <div class="dash-tables-grid">
+      ${tabCard(
+        'Variantes más pedidas', 'variants', barH(top_variants.length),
+        top_variants.length === 0,
+        top_variants.length === 0 ? noData : `
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr><th>Producto</th><th>Color</th><th>Unidades</th></tr></thead>
+            <tbody>${top_variants.map(v => `
+              <tr>
+                <td>${esc(v.product_name)}</td>
+                <td>${esc(v.color_name)}</td>
+                <td>${v.units}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`
+      )}
+      ${tabCard(
+        'Pares más frecuentes', 'pairs', barH(top_pairs.length),
+        top_pairs.length === 0,
+        top_pairs.length === 0 ? noData : `
+          <div class="admin-table-wrap"><table class="admin-table">
+            <thead><tr><th>Producto A</th><th>Producto B</th><th>Veces juntos</th></tr></thead>
+            <tbody>${top_pairs.map(p => `
+              <tr>
+                <td>${esc(p.product_a)}</td>
+                <td>${esc(p.product_b)}</td>
+                <td>${p.count}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>`
+      )}
     </div>
   `;
+}
+
+// ─── Dashboard Chart helpers ──────────────────────────────────
+const truncLabel = (s, max = 22) => {
+  s = String(s ?? '');
+  return s.length > max ? s.slice(0, max - 1) + '\u2026' : s;
+};
+
+function setupTabDelegation(body, data) {
+  body.addEventListener('click', e => {
+    const tab = e.target.closest('.dash-tab');
+    if (!tab) return;
+    const cardId  = tab.dataset.card;
+    const tabType = tab.dataset.tab;
+
+    // Toggle active class on tab buttons
+    body.querySelectorAll(`.dash-tab[data-card="${cardId}"]`).forEach(t => {
+      t.classList.toggle('active', t === tab);
+    });
+    // Show/hide panes
+    body.querySelectorAll(`.dash-tab-pane[data-card="${cardId}"]`).forEach(p => {
+      p.classList.toggle('hidden', p.dataset.pane !== tabType);
+    });
+    // Lazy-init chart on first "Gráfico" click
+    if (tabType === 'chart' && !dashCharts[cardId]) {
+      initDashChart(cardId, data);
+    }
+  });
+}
+
+function initVisibleCharts(data) {
+  // All sections start with "Gráfico" tab active — init them all eagerly
+  const ids = ['timeline', 'section', 'delivery', 'clients', 'localidades',
+               'top-products', 'low-products', 'variants', 'pairs'];
+  ids.forEach(id => initDashChart(id, data));
+}
+
+function initDashChart(id, data) {
+  const canvas = document.getElementById(`chart-${id}`);
+  if (!canvas || dashCharts[id]) return; // no canvas (no data) or already inited
+  let chart;
+  switch (id) {
+    case 'timeline':     chart = initChartTimeline(canvas, data);     break;
+    case 'section':      chart = initChartSection(canvas, data);      break;
+    case 'delivery':     chart = initChartDelivery(canvas, data);     break;
+    case 'clients':      chart = initChartClients(canvas, data);      break;
+    case 'localidades':  chart = initChartLocalidades(canvas, data);  break;
+    case 'top-products': chart = initChartTopProducts(canvas, data);  break;
+    case 'low-products': chart = initChartLowProducts(canvas, data);  break;
+    case 'variants':     chart = initChartVariants(canvas, data);     break;
+    case 'pairs':        chart = initChartPairs(canvas, data);        break;
+  }
+  if (chart) dashCharts[id] = chart;
+}
+
+// ─── Individual chart initializers ───────────────────────────
+
+function initChartTimeline(canvas, data) {
+  const rows = data.orders_over_time || [];
+  return new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.date),
+      datasets: [
+        {
+          label: 'Pedidos',
+          data: rows.map(r => parseInt(r.orders)),
+          borderColor: '#00B3E9',
+          backgroundColor: 'rgba(0,179,233,0.1)',
+          yAxisID: 'yOrders',
+          tension: 0.3,
+          fill: true,
+          pointRadius: rows.length > 30 ? 0 : 3,
+        },
+        {
+          label: 'Ingresos',
+          data: rows.map(r => parseInt(r.revenue)),
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34,197,94,0.07)',
+          yAxisID: 'yRevenue',
+          tension: 0.3,
+          fill: false,
+          pointRadius: rows.length > 30 ? 0 : 3,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.yAxisID === 'yRevenue'
+              ? ` Ingresos: ${fmtPrice(ctx.parsed.y)}`
+              : ` Pedidos: ${ctx.parsed.y}`,
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 12 } },
+        yOrders: {
+          type: 'linear', position: 'left', beginAtZero: true,
+          ticks: { precision: 0 },
+          title: { display: true, text: 'Pedidos' },
+        },
+        yRevenue: {
+          type: 'linear', position: 'right', beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          ticks: { callback: v => fmtPrice(v) },
+          title: { display: true, text: 'Ingresos' },
+        },
+      },
+    },
+  });
+}
+
+function initChartSection(canvas, data) {
+  const map = {};
+  (data.by_section || []).forEach(s => { map[s.section] = parseInt(s.orders); });
+  return new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: ['Profesional', 'Mayorista'],
+      datasets: [{ data: [map.profesional || 0, map.mayorista || 0],
+                   backgroundColor: ['#00B3E9', '#555'], borderWidth: 0 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} pedidos` } },
+      },
+    },
+  });
+}
+
+function initChartDelivery(canvas, data) {
+  const map = {};
+  (data.by_delivery || []).forEach(s => { map[s.delivery] = parseInt(s.orders); });
+  return new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: ['Retiro en local', 'Envío a domicilio'],
+      datasets: [{ data: [map.retiro || 0, map.envio || 0],
+                   backgroundColor: ['#00B3E9', '#555'], borderWidth: 0 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} pedidos` } },
+      },
+    },
+  });
+}
+
+function initChartClients(canvas, data) {
+  const rows = data.top_clients || [];
+  return new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(c => truncLabel(c.client_name || '—')),
+      datasets: [{ label: 'Pedidos', data: rows.map(c => parseInt(c.orders)),
+                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.x} pedidos`,
+            afterLabel: ctx => ` ${fmtPrice(rows[ctx.dataIndex]?.total || 0)}`,
+          },
+        },
+      },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function initChartLocalidades(canvas, data) {
+  const rows = data.top_localidades || [];
+  return new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(l => truncLabel(l.client_localidad || '—')),
+      datasets: [{ label: 'Pedidos', data: rows.map(l => parseInt(l.orders)),
+                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.x} pedidos`,
+            afterLabel: ctx => ` ${fmtPrice(rows[ctx.dataIndex]?.total || 0)}`,
+          },
+        },
+      },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function initChartTopProducts(canvas, data) {
+  const rows = data.top_products || [];
+  return new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(p => truncLabel(p.product_name)),
+      datasets: [{ label: 'Unidades', data: rows.map(p => parseInt(p.units)),
+                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.x} unidades`,
+            afterLabel: ctx => ` ${fmtPrice(rows[ctx.dataIndex]?.revenue || 0)}`,
+          },
+        },
+      },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function initChartLowProducts(canvas, data) {
+  const rows = data.low_products || [];
+  return new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(p => truncLabel(p.product_name)),
+      datasets: [{ label: 'Unidades vendidas', data: rows.map(p => parseInt(p.units)),
+                   backgroundColor: '#f59e0b', borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.x} unidades vendidas`,
+            afterLabel: ctx => ` Stock: ${rows[ctx.dataIndex]?.stock ?? 0}`,
+          },
+        },
+      },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function initChartVariants(canvas, data) {
+  const rows = data.top_variants || [];
+  return new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(v => truncLabel(`${v.product_name} · ${v.color_name}`)),
+      datasets: [{ label: 'Unidades', data: rows.map(v => parseInt(v.units)),
+                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x} unidades` } },
+      },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function initChartPairs(canvas, data) {
+  const rows = data.top_pairs || [];
+  return new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: rows.map(p => truncLabel(`${p.product_a} + ${p.product_b}`)),
+      datasets: [{ label: 'Veces juntos', data: rows.map(p => parseInt(p.count)),
+                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x} veces juntos` } },
+      },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
 }
