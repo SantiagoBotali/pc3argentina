@@ -1233,6 +1233,9 @@ document.addEventListener('DOMContentLoaded', () => {
   navigate('products');
 });
 
+// ─── HTML escape helper for dashboard ─────────────────────────
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 // ─── Dashboard Page ───────────────────────────────────────────
 let dashFilters = { preset: 'all', from: '', to: '' };
 
@@ -1328,7 +1331,11 @@ async function loadDashboard() {
     const data = await api(`/admin/dashboard${qs ? '?' + qs : ''}`);
     body.innerHTML = buildDashHTML(data);
   } catch (e) {
-    body.innerHTML = `<p style="color:var(--color-danger);padding:20px 0">${e.message}</p>`;
+    body.innerHTML = '';
+    const errP = document.createElement('p');
+    errP.style.cssText = 'color:var(--color-danger);padding:20px 0';
+    errP.textContent = e.message;
+    body.appendChild(errP);
   }
 }
 
@@ -1407,9 +1414,9 @@ function buildDashHTML(d) {
               <thead><tr><th>Cliente</th><th>Teléfono</th><th>Sección</th><th>Pedidos</th><th>Total</th></tr></thead>
               <tbody>${top_clients.map(c => `
                 <tr>
-                  <td>${c.client_name || '—'}</td>
-                  <td style="font-size:12px;color:var(--color-text-muted)">${c.client_phone || '—'}</td>
-                  <td><span class="dash-badge">${c.section || '—'}</span></td>
+                  <td>${esc(c.client_name) || '—'}</td>
+                  <td style="font-size:12px;color:var(--color-text-muted)">${esc(c.client_phone) || '—'}</td>
+                  <td><span class="dash-badge">${esc(c.section) || '—'}</span></td>
                   <td>${c.orders}</td>
                   <td>${fmtPrice(c.total)}</td>
                 </tr>`).join('')}
@@ -1425,7 +1432,7 @@ function buildDashHTML(d) {
               <thead><tr><th>Localidad</th><th>Pedidos</th><th>Total</th></tr></thead>
               <tbody>${top_localidades.map(l => `
                 <tr>
-                  <td>${l.client_localidad || '—'}</td>
+                  <td>${esc(l.client_localidad) || '—'}</td>
                   <td>${l.orders}</td>
                   <td>${fmtPrice(l.total)}</td>
                 </tr>`).join('')}
@@ -1444,7 +1451,7 @@ function buildDashHTML(d) {
               <thead><tr><th>Producto</th><th>Unidades</th><th>Ingresos</th><th>%</th></tr></thead>
               <tbody>${top_products.map(p => `
                 <tr>
-                  <td>${p.product_name}</td>
+                  <td>${esc(p.product_name)}</td>
                   <td>${p.units}</td>
                   <td>${fmtPrice(p.revenue)}</td>
                   <td style="color:var(--color-text-muted)">${totalUnits > 0 ? Math.round(parseInt(p.units) / totalUnits * 100) : 0}%</td>
@@ -1461,7 +1468,7 @@ function buildDashHTML(d) {
               <thead><tr><th>Producto</th><th>Unidades vendidas</th><th>Stock actual</th></tr></thead>
               <tbody>${low_products.map(p => `
                 <tr>
-                  <td>${p.product_name}</td>
+                  <td>${esc(p.product_name)}</td>
                   <td>${p.units}</td>
                   <td>${p.stock}</td>
                 </tr>`).join('')}
@@ -1480,8 +1487,8 @@ function buildDashHTML(d) {
               <thead><tr><th>Producto</th><th>Color</th><th>Unidades</th></tr></thead>
               <tbody>${top_variants.map(v => `
                 <tr>
-                  <td>${v.product_name}</td>
-                  <td>${v.color_name}</td>
+                  <td>${esc(v.product_name)}</td>
+                  <td>${esc(v.color_name)}</td>
                   <td>${v.units}</td>
                 </tr>`).join('')}
               </tbody>
@@ -1496,8 +1503,8 @@ function buildDashHTML(d) {
               <thead><tr><th>Producto A</th><th>Producto B</th><th>Veces juntos</th></tr></thead>
               <tbody>${top_pairs.map(p => `
                 <tr>
-                  <td>${p.product_a}</td>
-                  <td>${p.product_b}</td>
+                  <td>${esc(p.product_a)}</td>
+                  <td>${esc(p.product_b)}</td>
                   <td>${p.count}</td>
                 </tr>`).join('')}
               </tbody>
