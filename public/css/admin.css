@@ -697,3 +697,58 @@
   border: 1px solid var(--color-border);
   text-transform: capitalize;
 }
+
+/* ─── Dashboard Tabs ──────────────────────────────────────────── */
+.dash-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.dash-card-header .dash-table-title { margin: 0; }
+
+.dash-tabs {
+  display: flex;
+  gap: 3px;
+  background: var(--color-surface2);
+  border-radius: var(--radius);
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.dash-tab {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: calc(var(--radius) - 2px);
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.dash-tab.active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.dash-tab-pane.hidden { display: none; }
+
+/* ─── Distribution mini-cards inside tab pane ────────────────── */
+.dash-dist-mini {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+/* ─── Granularity label next to chart title ──────────────────── */
+.dash-granularity {
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
