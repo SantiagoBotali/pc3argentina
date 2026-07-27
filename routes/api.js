@@ -892,4 +892,170 @@ router.delete('/admin/colors/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// ─── Dashboard ──────────────────────────────────────────────────
+
+router.get('/admin/dashboard', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const { from, to } = req.query;
+
+    // Adjust 'to' to include the full selected day
+    const fromParam = from || null;
+    const toParam   = to
+      ? new Date(new Date(to).getTime() + 86_400_000).toISOString()
+      : null;
+
+    const [
+      kpisRows, bySection, byDelivery,
+      topClients, topLocalidades,
+      topProducts, lowProducts,
+      topVariants, topPairs,
+    ] = await Promise.all([
+
+      db.query(`
+        SELECT
+          COUNT(*)                                              AS total_orders,
+          COUNT(*) FILTER (WHERE status = 'confirmed')         AS confirmed_orders,
+          COUNT(*) FILTER (WHERE status = 'pending')           AS pending_orders,
+          COUNT(*) FILTER (WHERE status = 'cancelled')         AS cancelled_orders,
+          COALESCE(SUM(total) FILTER (WHERE status = 'confirmed'), 0) AS confirmed_revenue
+        FROM orders
+        WHERE ($1::timestamptz IS NULL OR created_at >= $1)
+          AND ($2::timestamptz IS NULL OR created_at <  $2)
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT section, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
+        FROM orders
+        WHERE status = 'confirmed'
+          AND ($1::timestamptz IS NULL OR created_at >= $1)
+          AND ($2::timestamptz IS NULL OR created_at <  $2)
+        GROUP BY section
+        ORDER BY orders DESC
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT delivery, COUNT(*) AS orders
+        FROM orders
+        WHERE status = 'confirmed'
+          AND ($1::timestamptz IS NULL OR created_at >= $1)
+          AND ($2::timestamptz IS NULL OR created_at <  $2)
+        GROUP BY delivery
+        ORDER BY orders DESC
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT client_name, client_phone, section,
+               COUNT(*) AS orders, SUM(total) AS total
+        FROM orders
+        WHERE status = 'confirmed'
+          AND ($1::timestamptz IS NULL OR created_at >= $1)
+          AND ($2::timestamptz IS NULL OR created_at <  $2)
+        GROUP BY client_name, client_phone, section
+        ORDER BY orders DESC, total DESC
+        LIMIT 10
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT client_localidad, COUNT(*) AS orders, SUM(total) AS total
+        FROM orders
+        WHERE status = 'confirmed'
+          AND client_localidad != ''
+          AND ($1::timestamptz IS NULL OR created_at >= $1)
+          AND ($2::timestamptz IS NULL OR created_at <  $2)
+        GROUP BY client_localidad
+        ORDER BY orders DESC
+        LIMIT 10
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT oi.product_name,
+               SUM(oi.quantity) AS units,
+               SUM(oi.subtotal) AS revenue
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE o.status = 'confirmed'
+          AND ($1::timestamptz IS NULL OR o.created_at >= $1)
+          AND ($2::timestamptz IS NULL OR o.created_at <  $2)
+        GROUP BY oi.product_name
+        ORDER BY units DESC
+        LIMIT 10
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT p.id AS product_id, p.name AS product_name, p.stock,
+               COALESCE(SUM(oi.quantity), 0) AS units
+        FROM products p
+        LEFT JOIN order_items oi ON oi.product_id = p.id
+        LEFT JOIN orders o
+          ON  o.id = oi.order_id
+          AND o.status = 'confirmed'
+          AND ($1::timestamptz IS NULL OR o.created_at >= $1)
+          AND ($2::timestamptz IS NULL OR o.created_at <  $2)
+        WHERE p.active = 1
+        GROUP BY p.id, p.name, p.stock
+        ORDER BY units ASC
+        LIMIT 5
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT oi.product_name, oi.color_name, SUM(oi.quantity) AS units
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE o.status = 'confirmed'
+          AND oi.color_name != ''
+          AND ($1::timestamptz IS NULL OR o.created_at >= $1)
+          AND ($2::timestamptz IS NULL OR o.created_at <  $2)
+        GROUP BY oi.product_name, oi.color_name
+        ORDER BY units DESC
+        LIMIT 10
+      `, [fromParam, toParam]),
+
+      db.query(`
+        SELECT a.product_name AS product_a,
+               b.product_name AS product_b,
+               COUNT(*)       AS count
+        FROM order_items a
+        JOIN order_items b
+          ON  a.order_id = b.order_id
+          AND a.product_name < b.product_name
+        JOIN orders o ON o.id = a.order_id
+        WHERE o.status = 'confirmed'
+          AND ($1::timestamptz IS NULL OR o.created_at >= $1)
+          AND ($2::timestamptz IS NULL OR o.created_at <  $2)
+        GROUP BY a.product_name, b.product_name
+        ORDER BY count DESC
+        LIMIT 10
+      `, [fromParam, toParam]),
+    ]);
+
+    const k = kpisRows[0];
+    const confirmedOrders  = parseInt(k.confirmed_orders)  || 0;
+    const confirmedRevenue = parseInt(k.confirmed_revenue) || 0;
+
+    res.json({
+      kpis: {
+        total_orders:      parseInt(k.total_orders)     || 0,
+        confirmed_orders:  confirmedOrders,
+        pending_orders:    parseInt(k.pending_orders)   || 0,
+        cancelled_orders:  parseInt(k.cancelled_orders) || 0,
+        confirmed_revenue: confirmedRevenue,
+        avg_ticket: confirmedOrders > 0
+          ? Math.round(confirmedRevenue / confirmedOrders)
+          : 0,
+      },
+      by_section:      bySection,
+      by_delivery:     byDelivery,
+      top_clients:     topClients,
+      top_localidades: topLocalidades,
+      top_products:    topProducts,
+      low_products:    lowProducts,
+      top_variants:    topVariants,
+      top_pairs:       topPairs,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
