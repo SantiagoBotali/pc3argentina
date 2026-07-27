@@ -1607,6 +1607,13 @@ const truncLabel = (s, max = 22) => {
   return s.length > max ? s.slice(0, max - 1) + '\u2026' : s;
 };
 
+const CHART_PALETTE = [
+  '#00B3E9','#22c55e','#f59e0b','#a855f7','#ef4444',
+  '#06b6d4','#84cc16','#f97316','#8b5cf6','#ec4899',
+  '#14b8a6','#eab308','#3b82f6','#10b981','#f43f5e',
+];
+const chartColors = n => Array.from({ length: n }, (_, i) => CHART_PALETTE[i % CHART_PALETTE.length]);
+
 function setupTabDelegation(body, data) {
   body.addEventListener('click', e => {
     const tab = e.target.closest('.dash-tab');
@@ -1725,7 +1732,7 @@ function initChartSection(canvas, data) {
     data: {
       labels: ['Profesional', 'Mayorista'],
       datasets: [{ data: [map.profesional || 0, map.mayorista || 0],
-                   backgroundColor: ['#00B3E9', '#555'], borderWidth: 0 }],
+                   backgroundColor: chartColors(2), borderWidth: 0 }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -1745,7 +1752,7 @@ function initChartDelivery(canvas, data) {
     data: {
       labels: ['Retiro en local', 'Envío a domicilio'],
       datasets: [{ data: [map.retiro || 0, map.envio || 0],
-                   backgroundColor: ['#00B3E9', '#555'], borderWidth: 0 }],
+                   backgroundColor: chartColors(2), borderWidth: 0 }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -1764,7 +1771,7 @@ function initChartClients(canvas, data) {
     data: {
       labels: rows.map(c => truncLabel(c.client_name || '—')),
       datasets: [{ label: 'Pedidos', data: rows.map(c => parseInt(c.orders)),
-                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+                   backgroundColor: chartColors(rows.length), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -1789,7 +1796,7 @@ function initChartLocalidades(canvas, data) {
     data: {
       labels: rows.map(l => truncLabel(l.client_localidad || '—')),
       datasets: [{ label: 'Pedidos', data: rows.map(l => parseInt(l.orders)),
-                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+                   backgroundColor: chartColors(rows.length), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -1814,7 +1821,7 @@ function initChartTopProducts(canvas, data) {
     data: {
       labels: rows.map(p => truncLabel(p.product_name)),
       datasets: [{ label: 'Unidades', data: rows.map(p => parseInt(p.units)),
-                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+                   backgroundColor: chartColors(rows.length), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -1839,7 +1846,7 @@ function initChartLowProducts(canvas, data) {
     data: {
       labels: rows.map(p => truncLabel(p.product_name)),
       datasets: [{ label: 'Unidades vendidas', data: rows.map(p => parseInt(p.units)),
-                   backgroundColor: '#f59e0b', borderRadius: 4 }],
+                   backgroundColor: chartColors(rows.length), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -1864,7 +1871,7 @@ function initChartVariants(canvas, data) {
     data: {
       labels: rows.map(v => truncLabel(`${v.product_name} · ${v.color_name}`)),
       datasets: [{ label: 'Unidades', data: rows.map(v => parseInt(v.units)),
-                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+                   backgroundColor: chartColors(rows.length), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
@@ -1884,7 +1891,7 @@ function initChartPairs(canvas, data) {
     data: {
       labels: rows.map(p => truncLabel(`${p.product_a} + ${p.product_b}`)),
       datasets: [{ label: 'Veces juntos', data: rows.map(p => parseInt(p.count)),
-                   backgroundColor: '#00B3E9', borderRadius: 4 }],
+                   backgroundColor: chartColors(rows.length), borderRadius: 4 }],
     },
     options: {
       indexAxis: 'y', responsive: true, maintainAspectRatio: false,
