@@ -1232,3 +1232,278 @@ document.addEventListener('DOMContentLoaded', () => {
   // Start on products page
   navigate('products');
 });
+
+// ─── Dashboard Page ───────────────────────────────────────────
+let dashFilters = { preset: 'all', from: '', to: '' };
+
+async function renderDashboard() {
+  const content = document.getElementById('admin-content');
+
+  const presets = [
+    { key: 'today',  label: 'Hoy' },
+    { key: '7d',     label: '7 días' },
+    { key: '30d',    label: '30 días' },
+    { key: 'month',  label: 'Este mes' },
+    { key: 'all',    label: 'Todo' },
+  ];
+
+  content.innerHTML = `
+    <div id="dash-filters" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:24px">
+      ${presets.map(p => `
+        <button class="btn btn-sm ${dashFilters.preset === p.key ? 'btn-primary' : 'btn-ghost'}"
+                data-preset="${p.key}">${p.label}</button>
+      `).join('')}
+      <span style="margin:0 6px;color:var(--color-text-faint)">|</span>
+      <input type="date" id="dash-from" class="form-control" style="width:140px"
+             value="${dashFilters.from}" placeholder="Desde">
+      <input type="date" id="dash-to" class="form-control" style="width:140px"
+             value="${dashFilters.to}" placeholder="Hasta">
+      <button class="btn btn-sm btn-ghost" id="dash-apply">Aplicar</button>
+    </div>
+    <div id="dash-body">
+      <div class="loader-wrap">
+        <div class="loader-dots"><span></span><span></span><span></span></div>
+        <span>Cargando métricas...</span>
+      </div>
+    </div>
+  `;
+
+  content.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dashFilters.preset = btn.dataset.preset;
+      const range = presetRange(dashFilters.preset);
+      dashFilters.from = range.from;
+      dashFilters.to   = range.to;
+      document.getElementById('dash-from').value = range.from;
+      document.getElementById('dash-to').value   = range.to;
+      loadDashboard();
+    });
+  });
+
+  content.querySelector('#dash-apply')?.addEventListener('click', () => {
+    dashFilters.preset = 'custom';
+    dashFilters.from = document.getElementById('dash-from').value;
+    dashFilters.to   = document.getElementById('dash-to').value;
+    loadDashboard();
+  });
+
+  loadDashboard();
+}
+
+function presetRange(preset) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = fmt(now);
+  if (preset === 'today') return { from: today, to: today };
+  if (preset === '7d') {
+    const d = new Date(now); d.setDate(d.getDate() - 6);
+    return { from: fmt(d), to: today };
+  }
+  if (preset === '30d') {
+    const d = new Date(now); d.setDate(d.getDate() - 29);
+    return { from: fmt(d), to: today };
+  }
+  if (preset === 'month') {
+    const d = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: fmt(d), to: today };
+  }
+  return { from: '', to: '' }; // 'all'
+}
+
+async function loadDashboard() {
+  const body = document.getElementById('dash-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div class="loader-wrap">
+      <div class="loader-dots"><span></span><span></span><span></span></div>
+      <span>Cargando métricas...</span>
+    </div>
+  `;
+  try {
+    const params = new URLSearchParams();
+    if (dashFilters.from) params.set('from', dashFilters.from);
+    if (dashFilters.to)   params.set('to',   dashFilters.to);
+    const qs = params.toString();
+    const data = await api(`/admin/dashboard${qs ? '?' + qs : ''}`);
+    body.innerHTML = buildDashHTML(data);
+  } catch (e) {
+    body.innerHTML = `<p style="color:var(--color-danger);padding:20px 0">${e.message}</p>`;
+  }
+}
+
+function kpiCard(label, value, badgeClass) {
+  return `
+    <div class="dash-kpi-card">
+      <div class="dash-kpi-label">${label}</div>
+      <div class="dash-kpi-val${badgeClass ? ' ' + badgeClass : ''}">${value}</div>
+    </div>
+  `;
+}
+
+function buildDashHTML(d) {
+  const { kpis, by_section, by_delivery, top_clients, top_localidades,
+          top_products, low_products, top_variants, top_pairs } = d;
+
+  // Section distribution
+  const sectionMap = {};
+  by_section.forEach(s => { sectionMap[s.section] = s; });
+  const proOrders = parseInt(sectionMap.profesional?.orders || 0);
+  const mayOrders = parseInt(sectionMap.mayorista?.orders  || 0);
+  const proRev    = parseInt(sectionMap.profesional?.revenue || 0);
+  const mayRev    = parseInt(sectionMap.mayorista?.revenue  || 0);
+
+  // Delivery distribution
+  const delivMap = {};
+  by_delivery.forEach(s => { delivMap[s.delivery] = parseInt(s.orders); });
+  const totalDeliv = (delivMap.retiro || 0) + (delivMap.envio || 0);
+  const pctRetiro  = totalDeliv ? Math.round((delivMap.retiro || 0) / totalDeliv * 100) : 0;
+  const pctEnvio   = totalDeliv ? Math.round((delivMap.envio  || 0) / totalDeliv * 100) : 0;
+
+  // Total units for % in top products
+  const totalUnits = top_products.reduce((s, p) => s + parseInt(p.units), 0);
+
+  const noData = '<p class="dash-empty">Sin datos en este período</p>';
+
+  return `
+    <div class="dash-kpi-grid">
+      ${kpiCard('Total pedidos',        kpis.total_orders,                '')}
+      ${kpiCard('Ingresos confirmados', fmtPrice(kpis.confirmed_revenue), '')}
+      ${kpiCard('Ticket promedio',      fmtPrice(kpis.avg_ticket),        '')}
+      ${kpiCard('Pendientes',           kpis.pending_orders,              'badge-warn')}
+      ${kpiCard('Confirmados',          kpis.confirmed_orders,            'badge-ok')}
+      ${kpiCard('Cancelados',           kpis.cancelled_orders,            'badge-err')}
+    </div>
+
+    <div class="dash-dist-grid">
+      <div class="dash-dist-card">
+        <div class="dash-dist-label">Profesional</div>
+        <div class="dash-dist-val">${proOrders} pedidos</div>
+        <div class="dash-dist-sub">${fmtPrice(proRev)}</div>
+      </div>
+      <div class="dash-dist-card">
+        <div class="dash-dist-label">Mayorista</div>
+        <div class="dash-dist-val">${mayOrders} pedidos</div>
+        <div class="dash-dist-sub">${fmtPrice(mayRev)}</div>
+      </div>
+      <div class="dash-dist-card">
+        <div class="dash-dist-label">Retiro en local</div>
+        <div class="dash-dist-val">${delivMap.retiro || 0} pedidos</div>
+        <div class="dash-dist-sub">${pctRetiro}% del total</div>
+      </div>
+      <div class="dash-dist-card">
+        <div class="dash-dist-label">Envío a domicilio</div>
+        <div class="dash-dist-val">${delivMap.envio || 0} pedidos</div>
+        <div class="dash-dist-sub">${pctEnvio}% del total</div>
+      </div>
+    </div>
+
+    <div class="dash-tables-grid">
+      <div class="dash-table-card">
+        <h4 class="dash-table-title">Clientes más frecuentes</h4>
+        ${top_clients.length === 0 ? noData : `
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Cliente</th><th>Teléfono</th><th>Sección</th><th>Pedidos</th><th>Total</th></tr></thead>
+              <tbody>${top_clients.map(c => `
+                <tr>
+                  <td>${c.client_name || '—'}</td>
+                  <td style="font-size:12px;color:var(--color-text-muted)">${c.client_phone || '—'}</td>
+                  <td><span class="dash-badge">${c.section || '—'}</span></td>
+                  <td>${c.orders}</td>
+                  <td>${fmtPrice(c.total)}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+      <div class="dash-table-card">
+        <h4 class="dash-table-title">Por localidad</h4>
+        ${top_localidades.length === 0 ? noData : `
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Localidad</th><th>Pedidos</th><th>Total</th></tr></thead>
+              <tbody>${top_localidades.map(l => `
+                <tr>
+                  <td>${l.client_localidad || '—'}</td>
+                  <td>${l.orders}</td>
+                  <td>${fmtPrice(l.total)}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+    </div>
+
+    <div class="dash-tables-grid">
+      <div class="dash-table-card">
+        <h4 class="dash-table-title">Productos más vendidos</h4>
+        ${top_products.length === 0 ? noData : `
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Producto</th><th>Unidades</th><th>Ingresos</th><th>%</th></tr></thead>
+              <tbody>${top_products.map(p => `
+                <tr>
+                  <td>${p.product_name}</td>
+                  <td>${p.units}</td>
+                  <td>${fmtPrice(p.revenue)}</td>
+                  <td style="color:var(--color-text-muted)">${totalUnits > 0 ? Math.round(parseInt(p.units) / totalUnits * 100) : 0}%</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+      <div class="dash-table-card">
+        <h4 class="dash-table-title">Productos menos vendidos</h4>
+        ${low_products.length === 0 ? noData : `
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Producto</th><th>Unidades vendidas</th><th>Stock actual</th></tr></thead>
+              <tbody>${low_products.map(p => `
+                <tr>
+                  <td>${p.product_name}</td>
+                  <td>${p.units}</td>
+                  <td>${p.stock}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+    </div>
+
+    <div class="dash-tables-grid">
+      <div class="dash-table-card">
+        <h4 class="dash-table-title">Variantes más pedidas</h4>
+        ${top_variants.length === 0 ? noData : `
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Producto</th><th>Color</th><th>Unidades</th></tr></thead>
+              <tbody>${top_variants.map(v => `
+                <tr>
+                  <td>${v.product_name}</td>
+                  <td>${v.color_name}</td>
+                  <td>${v.units}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+      <div class="dash-table-card">
+        <h4 class="dash-table-title">Pares más frecuentes</h4>
+        ${top_pairs.length === 0 ? noData : `
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead><tr><th>Producto A</th><th>Producto B</th><th>Veces juntos</th></tr></thead>
+              <tbody>${top_pairs.map(p => `
+                <tr>
+                  <td>${p.product_a}</td>
+                  <td>${p.product_b}</td>
+                  <td>${p.count}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+    </div>
+  `;
+}
