@@ -1237,9 +1237,44 @@ document.addEventListener('DOMContentLoaded', () => {
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // ─── Dashboard Page ───────────────────────────────────────────
+let dashCharts  = {};
 let dashFilters = { preset: 'all', from: '', to: '' };
 
+async function loadChartJs() {
+  if (window.Chart) return;
+  return new Promise((resolve, reject) => {
+    if (document.getElementById('chartjs-cdn')) {
+      // Script tag exists but Chart not yet ready — wait for load
+      document.getElementById('chartjs-cdn').addEventListener('load', () => {
+        applyChartDefaults();
+        resolve();
+      });
+      return;
+    }
+    const s = document.createElement('script');
+    s.id  = 'chartjs-cdn';
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+    s.onload  = () => { applyChartDefaults(); resolve(); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+function applyChartDefaults() {
+  if (!window.Chart) return;
+  const style = getComputedStyle(document.documentElement);
+  Chart.defaults.color       = style.getPropertyValue('--color-text-muted').trim() || '#888';
+  Chart.defaults.borderColor = style.getPropertyValue('--color-border').trim()     || '#2a2a2a';
+  Chart.defaults.font.family = style.getPropertyValue('font-family')               || 'inherit';
+}
+
+function destroyDashCharts() {
+  Object.values(dashCharts).forEach(c => { try { c.destroy(); } catch (_) {} });
+  dashCharts = {};
+}
+
 async function renderDashboard() {
+  await loadChartJs();
   const content = document.getElementById('admin-content');
 
   const presets = [
@@ -1322,6 +1357,7 @@ function presetRange(preset) {
 async function loadDashboard() {
   const body = document.getElementById('dash-body');
   if (!body) return;
+  destroyDashCharts();
   body.innerHTML = `
     <div class="loader-wrap">
       <div class="loader-dots"><span></span><span></span><span></span></div>
@@ -1335,6 +1371,8 @@ async function loadDashboard() {
     const qs = params.toString();
     const data = await api(`/admin/dashboard${qs ? '?' + qs : ''}`);
     body.innerHTML = buildDashHTML(data);
+    initVisibleCharts(data);
+    setupTabDelegation(body, data);
   } catch (e) {
     body.innerHTML = '';
     const errP = document.createElement('p');
