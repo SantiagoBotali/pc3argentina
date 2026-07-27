@@ -905,11 +905,21 @@ router.get('/admin/dashboard', requireAdmin, async (req, res) => {
       ? new Date(new Date(to).getTime() + 86_400_000).toISOString()
       : null;
 
+    // Determine time grouping granularity (≤60 days → by day, else → by month)
+    const diffDays = fromParam && toParam
+      ? Math.round((new Date(toParam) - new Date(fromParam)) / 86_400_000)
+      : null;
+    const byDay = diffDays !== null && diffDays <= 60;
+    const timeGroupExpr = byDay
+      ? `DATE(created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')`
+      : `TO_CHAR(created_at AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM')`;
+
     const [
       kpisRows, bySection, byDelivery,
       topClients, topLocalidades,
       topProducts, lowProducts,
       topVariants, topPairs,
+      ordersOverTime,
     ] = await Promise.all([
 
       db.query(`
@@ -1027,6 +1037,19 @@ router.get('/admin/dashboard', requireAdmin, async (req, res) => {
         ORDER BY count DESC
         LIMIT 10
       `, [fromParam, toParam]),
+
+      db.query(
+        `SELECT ${timeGroupExpr} AS date,
+                COUNT(*) AS orders,
+                COALESCE(SUM(total), 0) AS revenue
+         FROM orders
+         WHERE status = 'confirmed'
+           AND ($1::timestamptz IS NULL OR created_at >= $1)
+           AND ($2::timestamptz IS NULL OR created_at <  $2)
+         GROUP BY ${timeGroupExpr}
+         ORDER BY date ASC`,
+        [fromParam, toParam]
+      ),
     ]);
 
     const k = kpisRows[0];
@@ -1051,7 +1074,9 @@ router.get('/admin/dashboard', requireAdmin, async (req, res) => {
       top_products:    topProducts,
       low_products:    lowProducts,
       top_variants:    topVariants,
-      top_pairs:       topPairs,
+      top_pairs:        topPairs,
+      orders_over_time: ordersOverTime,
+      time_granularity: byDay ? 'day' : 'month',
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
