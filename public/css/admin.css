@@ -580,3 +580,120 @@
   outline: 2px solid var(--color-primary, #6366f1);
   background: var(--color-surface3, rgba(255,255,255,0.08)) !important;
 }
+
+/* ─── Dashboard ──────────────────────────────────────────────── */
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.dash-kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+}
+
+.dash-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 8px;
+}
+
+.dash-kpi-val {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.dash-kpi-val.badge-warn { color: var(--color-warning); }
+.dash-kpi-val.badge-ok   { color: var(--color-success); }
+.dash-kpi-val.badge-err  { color: var(--color-danger);  }
+
+.dash-dist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.dash-dist-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+}
+
+.dash-dist-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 6px;
+}
+
+.dash-dist-val {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 3px;
+}
+
+.dash-dist-sub {
+  font-size: 12px;
+  color: var(--color-text-faint);
+}
+
+.dash-tables-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 900px) {
+  .dash-tables-grid { grid-template-columns: 1fr; }
+}
+
+.dash-table-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.dash-table-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 12px;
+}
+
+.dash-empty {
+  color: var(--color-text-faint);
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+  margin: 0;
+}
+
+.dash-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--color-surface2);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  text-transform: capitalize;
+}
