@@ -1279,6 +1279,11 @@ async function renderDashboard() {
       dashFilters.to   = range.to;
       document.getElementById('dash-from').value = range.from;
       document.getElementById('dash-to').value   = range.to;
+      // Update active button styling
+      content.querySelectorAll('[data-preset]').forEach(b => {
+        b.classList.toggle('btn-primary', b === btn);
+        b.classList.toggle('btn-ghost', b !== btn);
+      });
       loadDashboard();
     });
   });

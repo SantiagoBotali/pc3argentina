@@ -984,7 +984,7 @@ router.get('/admin/dashboard', requireAdmin, async (req, res) => {
 
       db.query(`
         SELECT p.id AS product_id, p.name AS product_name, p.stock,
-               COALESCE(SUM(oi.quantity), 0) AS units
+               COALESCE(SUM(oi.quantity) FILTER (WHERE o.id IS NOT NULL), 0) AS units
         FROM products p
         LEFT JOIN order_items oi ON oi.product_id = p.id
         LEFT JOIN orders o
