@@ -7,7 +7,7 @@ const ordersState = {
 
 const STATUS_LABEL = { pending: 'Pendiente', confirmed: 'Confirmado', cancelled: 'Cancelado' };
 const STATUS_BADGE  = { pending: 'badge-warning', confirmed: 'badge-success', cancelled: 'badge-danger' };
-const SECTION_LABEL = { profesional: 'Profesional', mayorista: 'Mayorista' };
+const SECTION_LABEL = { profesional: 'Mayorista', mayorista: 'Mayorista Pro' };
 
 function escapeHtml(str) {
   return String(str || '')
@@ -33,8 +33,8 @@ async function renderOrdersPage() {
         </select>
         <select id="filter-section" class="form-control" style="width:150px">
           <option value="">Todas las listas</option>
-          <option value="profesional" ${f.section==='profesional'?'selected':''}>Profesional</option>
-          <option value="mayorista"   ${f.section==='mayorista'  ?'selected':''}>Mayorista</option>
+          <option value="profesional" ${f.section==='profesional'?'selected':''}>Mayorista</option>
+          <option value="mayorista"   ${f.section==='mayorista'  ?'selected':''}>Mayorista Pro</option>
         </select>
         <input type="date" id="filter-from" class="form-control" style="width:140px" value="${f.from}" title="Desde">
         <input type="date" id="filter-to"   class="form-control" style="width:140px" value="${f.to}"   title="Hasta">
@@ -183,8 +183,8 @@ function renderOrderPanel(order) {
     client_email:     order?.client_email     || '',
     address:          order?.address          || '',
     client_localidad: order?.client_localidad || '',
-    delivery:         order?.delivery         || 'retiro',
-    comprobante:      order?.comprobante      || 'Consumidor Final A',
+    delivery:         order?.delivery         || 'local',
+    comprobante:      order?.comprobante      || 'Consumidor Final',
     notes:            order?.notes            || '',
   };
 
@@ -200,7 +200,7 @@ function renderOrderPanel(order) {
   const disabledAttr = canEdit ? '' : 'disabled';
   const readonlyAttr = canEdit ? '' : 'readonly';
 
-  const comprobanteOptions = ['Consumidor Final A','Monotributo A','Responsable Inscripto B','IVA Exento']
+  const comprobanteOptions = ['Consumidor Final','Monotributo A','Responsable Inscripto A','IVA Exento']
     .map(c => `<option ${v.comprobante === c ? 'selected' : ''}>${escapeHtml(c)}</option>`)
     .join('');
 
@@ -216,8 +216,8 @@ function renderOrderPanel(order) {
         <div class="form-group">
           <label class="form-label">Lista de precios</label>
           <select id="op-section" class="form-control" ${disabledAttr}>
-            <option value="mayorista"   ${v.section==='mayorista'   ?'selected':''}>Mayorista</option>
-            <option value="profesional" ${v.section==='profesional' ?'selected':''}>Profesional</option>
+            <option value="mayorista"   ${v.section==='mayorista'   ?'selected':''}>Mayorista Pro</option>
+            <option value="profesional" ${v.section==='profesional' ?'selected':''}>Mayorista</option>
           </select>
         </div>
         <div class="form-group">
@@ -263,8 +263,9 @@ function renderOrderPanel(order) {
         <div class="form-group">
           <label class="form-label">Entrega</label>
           <select id="op-delivery" class="form-control" ${disabledAttr}>
-            <option value="retiro"   ${v.delivery==='retiro'   ?'selected':''}>Retiro en sucursal</option>
-            <option value="andreani" ${v.delivery==='andreani' ?'selected':''}>Andreani</option>
+            <option value="local"    ${v.delivery==='local'    ?'selected':''}>Retiro por el local</option>
+            <option value="retiro"   ${v.delivery==='retiro'   ?'selected':''}>Retiro en sucursal Andreani</option>
+            <option value="andreani" ${v.delivery==='andreani' ?'selected':''}>Andreani (envío a domicilio)</option>
           </select>
         </div>
         <div class="form-group">

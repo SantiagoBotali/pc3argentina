@@ -32,7 +32,7 @@ async function saveOrderToBackend(section, data, delivery, comprobante) {
         address:          data.address    || '',
         client_localidad: data.localidad  || '',
         delivery,
-        comprobante:      comprobante || 'Consumidor Final A',
+        comprobante:      comprobante || 'Consumidor Final',
         items:            orderItems,
       }),
     });
@@ -71,7 +71,7 @@ function renderCheckoutModal(section) {
   }).join('');
 
 
-  const sectionLabel = section === 'profesional' ? 'Profesional' : 'Mayorista';
+  const sectionLabel = section === 'profesional' ? 'Mayorista' : 'Mayorista Pro';
 
   const modal = document.createElement('div');
   modal.id = 'checkout-modal';
@@ -104,16 +104,16 @@ function renderCheckoutModal(section) {
         <div class="form-group">
           <div class="delivery-options" style="flex-wrap:wrap;gap:6px">
             <label class="delivery-option selected" id="opt-cf">
-              <input type="radio" name="comprobante" value="Consumidor Final A" checked>
-              <span class="delivery-option-label">Consumidor Final A</span>
+              <input type="radio" name="comprobante" value="Consumidor Final" checked>
+              <span class="delivery-option-label">Consumidor Final</span>
             </label>
             <label class="delivery-option" id="opt-mono">
               <input type="radio" name="comprobante" value="Monotributo A">
               <span class="delivery-option-label">Monotributo A</span>
             </label>
             <label class="delivery-option" id="opt-ri">
-              <input type="radio" name="comprobante" value="Responsable Inscripto B">
-              <span class="delivery-option-label">Responsable Inscripto B</span>
+              <input type="radio" name="comprobante" value="Responsable Inscripto A">
+              <span class="delivery-option-label">Responsable Inscripto A</span>
             </label>
             <label class="delivery-option" id="opt-iva">
               <input type="radio" name="comprobante" value="IVA Exento">
@@ -170,10 +170,16 @@ function renderCheckoutModal(section) {
         <div class="form-group">
           <label class="form-label">Tipo de entrega *</label>
           <div class="delivery-options">
-            <label class="delivery-option selected" id="opt-retiro">
-              <input type="radio" name="delivery" value="retiro" checked>
+            <label class="delivery-option selected" id="opt-local">
+              <input type="radio" name="delivery" value="local" checked>
+              <span class="delivery-option-icon">🏠</span>
+              <span class="delivery-option-label">Retiro por el local</span>
+              <span class="delivery-option-desc">Rafaela, Santa Fe</span>
+            </label>
+            <label class="delivery-option" id="opt-retiro">
+              <input type="radio" name="delivery" value="retiro">
               <span class="delivery-option-icon">🏪</span>
-              <span class="delivery-option-label">Retiro en sucursal</span>
+              <span class="delivery-option-label">Retiro en sucursal Andreani</span>
               <span class="delivery-option-desc">Pasás a buscar</span>
             </label>
             <label class="delivery-option" id="opt-andreani">
@@ -259,7 +265,7 @@ function sendWhatsApp(section) {
   errorEl.style.display = 'none';
 
   const items = Object.values(state.carts[section] || {});
-  const sectionLabel = section === 'profesional' ? 'Profesional' : 'Mayorista';
+  const sectionLabel = section === 'profesional' ? 'Mayorista' : 'Mayorista Pro';
   let lines = [];
 
   lines.push(`*Pedido PC3 Argentina*`);
@@ -297,9 +303,11 @@ function sendWhatsApp(section) {
   lines.push(`📱 Teléfono: ${phone}`);
 
   if (delivery === 'andreani') {
-    lines.push(`📦 Envío: Andreani`);
+    lines.push(`📦 Envío: Andreani (a domicilio)`);
+  } else if (delivery === 'retiro') {
+    lines.push(`🏪 Entrega: Retiro en sucursal Andreani`);
   } else {
-    lines.push(`🏪 Entrega: Retiro en sucursal`);
+    lines.push(`🏠 Entrega: Retiro por el local (Rafaela, Santa Fe)`);
   }
 
   const message = lines.join('\n');

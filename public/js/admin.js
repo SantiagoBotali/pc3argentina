@@ -916,11 +916,11 @@ async function renderSettingsPage() {
       <h3>Configuración general</h3>
 
       <div class="form-group">
-        <label class="form-label">Compra mínima — Lista Profesional ($)</label>
+        <label class="form-label">Compra mínima — Lista Mayorista ($)</label>
         <input type="number" class="form-control" id="s-min-pro" value="${settings.min_purchase_pro || 550000}" min="0">
       </div>
       <div class="form-group">
-        <label class="form-label">Compra mínima — Lista Mayorista ($)</label>
+        <label class="form-label">Compra mínima — Lista Mayorista Pro ($)</label>
         <input type="number" class="form-control" id="s-min-mayo" value="${settings.min_purchase_mayo || 950000}" min="0">
       </div>
       <div class="form-group">
@@ -1405,9 +1405,10 @@ function buildDashHTML(d) {
 
   const delivMap  = {};
   by_delivery.forEach(s => { delivMap[s.delivery] = parseInt(s.orders); });
-  const totalDeliv = (delivMap.retiro || 0) + (delivMap.envio || 0);
-  const pctRetiro  = totalDeliv ? Math.round((delivMap.retiro || 0) / totalDeliv * 100) : 0;
-  const pctEnvio   = totalDeliv ? Math.round((delivMap.envio  || 0) / totalDeliv * 100) : 0;
+  const totalDeliv  = (delivMap.local || 0) + (delivMap.retiro || 0) + (delivMap.andreani || 0);
+  const pctLocal    = totalDeliv ? Math.round((delivMap.local    || 0) / totalDeliv * 100) : 0;
+  const pctRetiro   = totalDeliv ? Math.round((delivMap.retiro   || 0) / totalDeliv * 100) : 0;
+  const pctEnvio    = totalDeliv ? Math.round((delivMap.andreani || 0) / totalDeliv * 100) : 0;
 
   const totalUnits = top_products.reduce((s, p) => s + parseInt(p.units), 0);
   const noData     = '<p class="dash-empty">Sin datos en este período</p>';
@@ -1465,12 +1466,12 @@ function buildDashHTML(d) {
         proOrders === 0 && mayOrders === 0,
         `<div class="dash-dist-mini">
           <div class="dash-dist-card">
-            <div class="dash-dist-label">Profesional</div>
+            <div class="dash-dist-label">Mayorista</div>
             <div class="dash-dist-val">${proOrders} pedidos</div>
             <div class="dash-dist-sub">${fmtPrice(proRev)}</div>
           </div>
           <div class="dash-dist-card">
-            <div class="dash-dist-label">Mayorista</div>
+            <div class="dash-dist-label">Mayorista Pro</div>
             <div class="dash-dist-val">${mayOrders} pedidos</div>
             <div class="dash-dist-sub">${fmtPrice(mayRev)}</div>
           </div>
@@ -1481,13 +1482,18 @@ function buildDashHTML(d) {
         totalDeliv === 0,
         `<div class="dash-dist-mini">
           <div class="dash-dist-card">
-            <div class="dash-dist-label">Retiro en local</div>
+            <div class="dash-dist-label">Retiro por el local</div>
+            <div class="dash-dist-val">${delivMap.local || 0} pedidos</div>
+            <div class="dash-dist-sub">${pctLocal}% del total</div>
+          </div>
+          <div class="dash-dist-card">
+            <div class="dash-dist-label">Sucursal Andreani</div>
             <div class="dash-dist-val">${delivMap.retiro || 0} pedidos</div>
             <div class="dash-dist-sub">${pctRetiro}% del total</div>
           </div>
           <div class="dash-dist-card">
-            <div class="dash-dist-label">Envío a domicilio</div>
-            <div class="dash-dist-val">${delivMap.envio || 0} pedidos</div>
+            <div class="dash-dist-label">Andreani a domicilio</div>
+            <div class="dash-dist-val">${delivMap.andreani || 0} pedidos</div>
             <div class="dash-dist-sub">${pctEnvio}% del total</div>
           </div>
         </div>`
@@ -1730,7 +1736,7 @@ function initChartSection(canvas, data) {
   return new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels: ['Profesional', 'Mayorista'],
+      labels: ['Mayorista', 'Mayorista Pro'],
       datasets: [{ data: [map.profesional || 0, map.mayorista || 0],
                    backgroundColor: chartColors(2), borderWidth: 0 }],
     },
@@ -1750,9 +1756,9 @@ function initChartDelivery(canvas, data) {
   return new Chart(canvas, {
     type: 'doughnut',
     data: {
-      labels: ['Retiro en local', 'Envío a domicilio'],
-      datasets: [{ data: [map.retiro || 0, map.envio || 0],
-                   backgroundColor: chartColors(2), borderWidth: 0 }],
+      labels: ['Retiro por el local', 'Sucursal Andreani', 'Andreani a domicilio'],
+      datasets: [{ data: [map.local || 0, map.retiro || 0, map.andreani || 0],
+                   backgroundColor: chartColors(3), borderWidth: 0 }],
     },
     options: {
       responsive: true, maintainAspectRatio: false,

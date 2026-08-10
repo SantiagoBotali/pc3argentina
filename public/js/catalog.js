@@ -342,7 +342,7 @@ window.openPreview = function(productId) {
 
   // ── Price info ───────────────────────────────────────────
   const sectionPrice = section === 'mayorista' ? product.price_mayo : product.price_pro;
-  const sectionLabel = section === 'mayorista' ? 'Precio Mayorista' : 'Precio Profesional';
+  const sectionLabel = section === 'mayorista' ? 'Precio Mayorista Pro' : 'Precio Mayorista';
   const publicPrice  = product.price_public || 0;
 
   const priceInfo = `

@@ -164,7 +164,7 @@ window.renderCartSidebar = function(section) {
               <path d="M16 10a4 4 0 0 1-8 0"/>
             </svg>
           </div>
-          <div class="fw-bold">Carrito ${section === 'profesional' ? 'Profesional' : 'Mayorista'} vacío</div>
+          <div class="fw-bold">Carrito ${section === 'profesional' ? 'Mayorista' : 'Mayorista Pro'} vacío</div>
           <div class="text-sm text-muted">Agregá productos desde el catálogo</div>
         </div>`;
     } else {
