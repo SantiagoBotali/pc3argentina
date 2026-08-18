@@ -33,6 +33,7 @@ async function saveOrderToBackend(section, data, delivery, comprobante) {
         client_localidad: data.localidad  || '',
         delivery,
         comprobante:      comprobante || 'Consumidor Final',
+        reseller_slug:    state.resellerSlug || undefined,
         items:            orderItems,
       }),
     });
@@ -270,6 +271,7 @@ function sendWhatsApp(section) {
 
   lines.push(`*Pedido PC3 Argentina*`);
   lines.push(`_Lista: ${sectionLabel}_`);
+  if (state.resellerName) lines.push(`_Revendedor: ${state.resellerName}_`);
   lines.push('');
 
   let total = 0;

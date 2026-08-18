@@ -66,6 +66,7 @@ async function createApp() {
   // Routes
   app.use('/api', require('./routes/api'));
   app.use('/admin', require('./routes/admin'));
+  app.use('/revendedor', require('./routes/reseller'));
   app.use('/', require('./routes/catalog'));
 
   return app;

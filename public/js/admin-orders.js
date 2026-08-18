@@ -118,6 +118,7 @@ function renderOrdersTable(wrap) {
           <br><small style="color:var(--color-text-muted)">${escapeHtml(o.client_phone)}${o.client_email ? ' · ' + escapeHtml(o.client_email) : ''}</small>
         </td>
         <td>${sectionLabel}</td>
+        <td>${o.reseller_name ? `<span class="badge">${escapeHtml(o.reseller_name)}</span>` : '<span class="text-muted">—</span>'}</td>
         <td style="font-weight:600">${fmtPrice(o.total)}</td>
         <td><span class="badge ${badgeClass}">${statusLabel}</span></td>
         <td>${date}</td>
@@ -132,7 +133,7 @@ function renderOrdersTable(wrap) {
       <table class="admin-table" style="width:100%">
         <thead>
           <tr>
-            <th>#</th><th>Cliente</th><th>Lista</th><th>Total</th><th>Estado</th><th>Fecha</th><th>Confirmación</th><th>Acciones</th>
+            <th>#</th><th>Cliente</th><th>Lista</th><th>Revendedor</th><th>Total</th><th>Estado</th><th>Fecha</th><th>Confirmación</th><th>Acciones</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>

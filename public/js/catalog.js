@@ -11,8 +11,35 @@ window.state = {
   activeCartTab: 'profesional',
   products: [],
   settings: {},
-  carts: { profesional: {}, mayorista: {} }
+  carts: { profesional: {}, mayorista: {} },
+  resellerSlug: null,
+  resellerName: null,
 };
+
+// ─── Revendedor: detecta /revendedor/:slug y tagea la sesión ──
+(function detectReseller() {
+  const m = window.location.pathname.match(/^\/revendedor\/([^/]+)/);
+  if (!m) return;
+  state.resellerSlug = decodeURIComponent(m[1]);
+})();
+
+async function setupResellerBanner() {
+  if (!state.resellerSlug) return;
+  try {
+    const res = await fetch(`/api/resellers/${encodeURIComponent(state.resellerSlug)}`);
+    if (!res.ok) throw new Error();
+    const reseller = await res.json();
+    state.resellerName = reseller.name;
+  } catch (_) {
+    state.resellerName = state.resellerSlug;
+  }
+
+  const banner = document.createElement('div');
+  banner.id = 'reseller-banner';
+  banner.style.cssText = 'position:sticky;top:0;z-index:60;background:var(--color-accent);color:#fff;text-align:center;padding:8px 12px;font-size:13px;font-weight:600';
+  banner.innerHTML = `Vendiendo como <strong>${state.resellerName}</strong> · <a href="/revendedor" style="color:#fff;text-decoration:underline">cambiar</a>`;
+  document.body.prepend(banner);
+}
 
 // ─── Utility ─────────────────────────────────────────────────
 window.fmt = (n) =>
@@ -61,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupFabs();
   setupPreviewModal();
   updateSectionInfo();
+  setupResellerBanner();
 });
 
 // ─── Theme ────────────────────────────────────────────────────

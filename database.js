@@ -28,7 +28,7 @@ function prepare(sql) {
   // Tables like `settings` (TEXT primary key) and `user_sessions` do not have one.
   const isInsert = /^\s*INSERT/i.test(sql);
   const hasReturning = /RETURNING/i.test(sql);
-  const hasSerialId = /INSERT\s+INTO\s+(products|product_images|discount_tiers|admin_users|colors|orders|order_items)\b/i.test(sql);
+  const hasSerialId = /INSERT\s+INTO\s+(products|product_images|discount_tiers|admin_users|colors|orders|order_items|resellers)\b/i.test(sql);
   const insertQuery = isInsert && !hasReturning && hasSerialId ? pgQuery + ' RETURNING id' : pgQuery;
 
   return {
@@ -74,9 +74,10 @@ function save() {}
 
 async function init() {
   // max:3 — serverless functions are short-lived; a large pool wastes Neon connections.
+  const isLocalDb = /localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL || '');
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: isLocalDb ? false : { rejectUnauthorized: false },
     max: 3,
     idleTimeoutMillis: 10_000,
   });
@@ -131,6 +132,13 @@ async function init() {
       hex        TEXT    NOT NULL DEFAULT '#cccccc',
       sort_order INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS resellers (
+      id         SERIAL PRIMARY KEY,
+      name       TEXT    NOT NULL,
+      slug       TEXT    NOT NULL UNIQUE,
+      active     INTEGER NOT NULL DEFAULT 1,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
     CREATE TABLE IF NOT EXISTS orders (
       id           SERIAL PRIMARY KEY,
       status       TEXT        NOT NULL DEFAULT 'pending',
@@ -169,6 +177,7 @@ async function init() {
     ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_localidad TEXT   NOT NULL DEFAULT '';
     ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_email    TEXT    NOT NULL DEFAULT '';
     ALTER TABLE product_images ADD COLUMN IF NOT EXISTS image_type      TEXT    NOT NULL DEFAULT 'variant';
+    ALTER TABLE orders         ADD COLUMN IF NOT EXISTS reseller_id     INTEGER REFERENCES resellers(id);
   `);
 
   // ── Seed default colors if table is empty ─────────────────────────
@@ -185,6 +194,19 @@ async function init() {
         ('Blanco',      '#E8E8E8', 6),
         ('Rosa',        '#E91E8C', 7),
         ('Amarillo',    '#F5C518', 8)
+    `);
+  }
+
+  // ── Seed provisional resellers if table is empty ───────────────────
+  // Datos de prueba: nombres provisorios pedidos para probar el flujo de link único.
+  const resellerCount = await pool.query(`SELECT COUNT(*) FROM resellers`);
+  if (parseInt(resellerCount.rows[0].count) === 0) {
+    await pool.query(`
+      INSERT INTO resellers (name, slug) VALUES
+        ('Luis',  'luis'),
+        ('Ralph', 'ralph'),
+        ('Mily',  'mily'),
+        ('Pablo', 'pablo')
     `);
   }
 
