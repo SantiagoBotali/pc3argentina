@@ -250,10 +250,6 @@ function setupRowInteractions(row) {
   const firstImage = images[selectedVariantIdx];
   let effectiveStock = firstImage ? imgStockFn(firstImage) : (product.stock || 0);
 
-  // ── Auto-slideshow state (declared early so swatch handler can reference it) ──
-  let autoTimer = null;
-  const stopAutoSlide = () => { clearInterval(autoTimer); autoTimer = null; };
-
   function renderStockBadge(s) {
     if (!stockBadgeWrap) return;
     stockBadgeWrap.innerHTML = s === 0
@@ -266,15 +262,11 @@ function setupRowInteractions(row) {
   row.querySelectorAll('.js-swatch').forEach(swatch => {
     swatch.addEventListener('click', (e) => {
       e.stopPropagation();
-      stopAutoSlide();
       const idx = parseInt(swatch.dataset.swatchIdx);
       selectedVariantIdx = idx;
 
       if (mainImg) {
-        mainImg.style.opacity = '0';
         mainImg.src = swatch.dataset.src;
-        mainImg.onload = () => { mainImg.style.opacity = '1'; };
-        mainImg.style.transition = 'opacity 0.18s ease';
       }
 
       row.querySelectorAll('.js-swatch').forEach(s => s.classList.remove('active'));
@@ -298,26 +290,6 @@ function setupRowInteractions(row) {
     });
   });
 
-  // ── Auto-slideshow ───────────────────────────────────────────
-  // Only cycle variants with stock + context photos (skip out-of-stock variants)
-  const slideImages = images.filter(img =>
-    img.image_type === 'context' || imgStockFn(img) > 0
-  );
-  if (slideImages.length > 1 && mainImg) {
-    let autoIdx = 0;
-    const tick = () => {
-      autoIdx = (autoIdx + 1) % slideImages.length;
-      const img = slideImages[autoIdx];
-      mainImg.style.transition = 'opacity 0.5s ease';
-      mainImg.style.opacity = '0';
-      setTimeout(() => {
-        mainImg.src = productImgSrc(product.slug, img.filename);
-        requestAnimationFrame(() => requestAnimationFrame(() => { mainImg.style.opacity = '1'; }));
-      }, 500);
-    };
-    autoTimer = setInterval(tick, 5500);
-  }
-
   // Build context images array once for this product (for lightbox)
   const contextLightboxImgs = images
     .filter(img => img.image_type === 'context')
@@ -326,12 +298,8 @@ function setupRowInteractions(row) {
   row.querySelectorAll('.js-context-thumb').forEach(thumb => {
     thumb.addEventListener('click', (e) => {
       e.stopPropagation();
-      stopAutoSlide();
       if (mainImg) {
-        mainImg.style.opacity = '0';
         mainImg.src = thumb.dataset.src;
-        mainImg.onload = () => { mainImg.style.opacity = '1'; };
-        mainImg.style.transition = 'opacity 0.18s ease';
       }
       row.querySelectorAll('.js-swatch').forEach(s => s.classList.remove('active'));
     });

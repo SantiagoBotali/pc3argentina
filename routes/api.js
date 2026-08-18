@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const { v2: cloudinary } = require('cloudinary');
 const { requireAdmin } = require('../middleware/auth');
+const { fetchDolarBna } = require('../services/dolarBna');
 
 const getDb = () => global.__db;
 
@@ -116,8 +117,17 @@ async function createOrder(db, body) {
     delivery          = 'retiro',
     comprobante       = '',
     notes             = '',
+    reseller_slug     = null,
     items             = [],
   } = body;
+
+  let resellerId = null;
+  if (reseller_slug) {
+    const reseller = await db.prepare(
+      `SELECT id FROM resellers WHERE slug = ? AND active = 1`
+    ).get(reseller_slug);
+    resellerId = reseller ? reseller.id : null;
+  }
 
   const safeItems = items
     .map(i => ({
@@ -135,9 +145,9 @@ async function createOrder(db, body) {
   try {
     await client.query('BEGIN');
     const orderRes = await client.query(
-      `INSERT INTO orders (status, section, client_name, client_club, client_dni, client_cuit, client_phone, client_email, address, client_localidad, delivery, comprobante, notes, total)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-      ['pending', section, client_name, client_club, client_dni, client_cuit, client_phone, client_email, address, client_localidad, delivery, comprobante, notes, total]
+      `INSERT INTO orders (status, section, client_name, client_club, client_dni, client_cuit, client_phone, client_email, address, client_localidad, delivery, comprobante, notes, total, reseller_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      ['pending', section, client_name, client_club, client_dni, client_cuit, client_phone, client_email, address, client_localidad, delivery, comprobante, notes, total, resellerId]
     );
     const orderId = orderRes.rows[0].id;
 
@@ -161,7 +171,9 @@ async function createOrder(db, body) {
 }
 
 async function getOrderFull(db, id) {
-  const order = await db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id);
+  const order = await db.prepare(
+    `SELECT o.*, r.name AS reseller_name FROM orders o LEFT JOIN resellers r ON r.id = o.reseller_id WHERE o.id = ?`
+  ).get(id);
   if (!order) return null;
   order.items = await db.prepare(
     `SELECT * FROM order_items WHERE order_id = ? ORDER BY id`
@@ -252,6 +264,33 @@ router.post('/orders', async (req, res) => {
   }
 });
 
+// ─── Revendedores (público) ──────────────────────────────────────
+
+router.get('/resellers', async (req, res) => {
+  try {
+    const db = getDb();
+    const resellers = await db.prepare(
+      `SELECT id, name, slug FROM resellers WHERE active = 1 ORDER BY name`
+    ).all();
+    res.json(resellers);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/resellers/:slug', async (req, res) => {
+  try {
+    const db = getDb();
+    const reseller = await db.prepare(
+      `SELECT id, name, slug FROM resellers WHERE slug = ? AND active = 1`
+    ).get(req.params.slug);
+    if (!reseller) return res.status(404).json({ error: 'Revendedor no encontrado' });
+    res.json(reseller);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ─── ADMIN ROUTES ───────────────────────────────────────────────
 
 // ─── Orders admin ───────────────────────────────────────────────
@@ -266,30 +305,33 @@ router.get('/admin/orders', requireAdmin, async (req, res) => {
 
     if (status && ['pending', 'confirmed', 'cancelled'].includes(status)) {
       params.push(status);
-      where.push(`status = $${params.length}`);
+      where.push(`o.status = $${params.length}`);
     }
     if (section && ['profesional', 'mayorista'].includes(section)) {
       params.push(section);
-      where.push(`section = $${params.length}`);
+      where.push(`o.section = $${params.length}`);
     }
     if (search) {
       params.push(`%${search}%`);
       const n = params.length;
-      where.push(`(client_name ILIKE $${n} OR client_phone ILIKE $${n} OR client_email ILIKE $${n} OR client_dni ILIKE $${n})`);
+      where.push(`(o.client_name ILIKE $${n} OR o.client_phone ILIKE $${n} OR o.client_email ILIKE $${n} OR o.client_dni ILIKE $${n})`);
     }
     if (from) {
       params.push(from);
-      where.push(`created_at >= $${params.length}`);
+      where.push(`o.created_at >= $${params.length}`);
     }
     if (to) {
       params.push(to);
-      where.push(`created_at <= $${params.length}`);
+      where.push(`o.created_at <= $${params.length}`);
     }
 
     const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
     const orders = await db.query(
-      `SELECT * FROM orders ${whereClause}
-       ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, created_at DESC`,
+      `SELECT o.*, r.name AS reseller_name
+       FROM orders o
+       LEFT JOIN resellers r ON r.id = o.reseller_id
+       ${whereClause}
+       ORDER BY CASE o.status WHEN 'pending' THEN 0 ELSE 1 END, o.created_at DESC`,
       params
     );
 
@@ -824,6 +866,37 @@ router.post('/admin/change-password', requireAdmin, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Revendedores (admin) ────────────────────────────────────────
+
+router.get('/admin/resellers', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const rows = await db.query(`
+      SELECT r.id, r.name, r.slug,
+             COUNT(o.id) AS sales_count,
+             COALESCE(SUM(o.total) FILTER (WHERE o.status = 'confirmed'), 0) AS confirmed_revenue
+      FROM resellers r
+      LEFT JOIN orders o ON o.reseller_id = r.id
+      GROUP BY r.id, r.name, r.slug
+      ORDER BY sales_count DESC, r.name ASC
+    `);
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ─── Referencia de precios / dólar BNA ──────────────────────────
+
+router.get('/admin/dolar', requireAdmin, async (req, res) => {
+  try {
+    const data = await fetchDolarBna({ force: req.query.force === '1' });
+    res.json(data);
+  } catch (e) {
+    res.status(502).json({ error: 'No se pudo obtener la cotización del BNA: ' + e.message });
   }
 });
 
