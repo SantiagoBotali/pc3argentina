@@ -7,7 +7,7 @@ Catálogo digital de vendajes deportivos para distribuidores mayoristas. Los com
 - Distribuidores y revendedores mayoristas de Argentina
 - Compradores B2B que conocen el rubro deportivo
 - Acceden principalmente desde mobile durante visitas a clientes o en movimiento
-
+ 
 ## Register
 product
 
