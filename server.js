@@ -18,7 +18,9 @@ async function createApp() {
   app.use(express.static(path.join(__dirname, 'public'), {
     maxAge: ONE_YEAR * 1000,
     setHeaders(res, filePath) {
-      if (filePath.endsWith('.html')) {
+      // HTML/JS/CSS: el navegador revalida (ETag) en cada visita, así los
+      // cambios publicados llegan enseguida. Las imágenes mantienen caché largo.
+      if (/\.(html|js|css)$/.test(filePath)) {
         res.setHeader('Cache-Control', 'no-cache');
       }
     },

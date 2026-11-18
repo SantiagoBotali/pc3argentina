@@ -1,6 +1,6 @@
 // ─── Checkout ─────────────────────────────────────────────────
 
-async function saveOrderToBackend(section, data, delivery, comprobante) {
+async function saveOrderToBackend(section, data, delivery, comprobante, sellerSlug) {
   const items = Object.values(state.carts[section] || {});
   const orderItems = items.map(item => {
     const product = state.products.find(p => p.id === item.productId);
@@ -33,13 +33,40 @@ async function saveOrderToBackend(section, data, delivery, comprobante) {
         client_localidad: data.localidad  || '',
         delivery,
         comprobante:      comprobante || 'Consumidor Final',
-        reseller_slug:    state.resellerSlug || undefined,
+        reseller_slug:    sellerSlug || undefined,
         items:            orderItems,
       }),
     });
   } catch (_) {
     // best-effort: si falla, el flujo de WhatsApp continúa igual
   }
+}
+
+// Campo "Vendedor" (opcional): quién atendió al cliente, para pagar comisiones.
+// Si se entró por un link /revendedor/:slug, viene preseleccionado.
+function renderSellerField() {
+  const sellers = state.resellers || [];
+  if (!sellers.length) return '';
+  const options = sellers.map(s => `
+    <option value="${escapeHtml(s.slug)}" ${s.slug === state.resellerSlug ? 'selected' : ''}>${escapeHtml(s.name)}</option>
+  `).join('');
+  return `
+    <div class="form-group">
+      <label class="form-label" for="checkout-seller">Vendedor <span style="color:var(--color-text-muted);font-weight:400">(opcional)</span></label>
+      <select id="checkout-seller" class="form-control">
+        <option value="">Sin vendedor / compra directa</option>
+        ${options}
+      </select>
+      <div class="text-sm text-muted" style="margin-top:4px">Si te atendió alguien de PC3, elegí su nombre.</div>
+    </div>
+  `;
+}
+
+function getSelectedSeller() {
+  const slug = document.getElementById('checkout-seller')?.value ?? state.resellerSlug ?? '';
+  if (!slug) return null;
+  const seller = (state.resellers || []).find(s => s.slug === slug);
+  return { slug, name: seller ? seller.name : (state.resellerName || slug) };
 }
 
 window.openCheckout = function(section) {
@@ -192,6 +219,8 @@ function renderCheckoutModal(section) {
           </div>
         </div>
 
+        ${renderSellerField()}
+
         <div id="checkout-form-error" class="form-error" style="display:none;margin-bottom:12px"></div>
 
       </div>
@@ -271,7 +300,8 @@ function sendWhatsApp(section) {
 
   lines.push(`*Pedido PC3 Argentina*`);
   lines.push(`_Lista: ${sectionLabel}_`);
-  if (state.resellerName) lines.push(`_Revendedor: ${state.resellerName}_`);
+  const seller = getSelectedSeller();
+  if (seller) lines.push(`_Vendedor: ${seller.name}_`);
   lines.push('');
 
   let total = 0;
@@ -317,7 +347,7 @@ function sendWhatsApp(section) {
   const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
 
   // Guardar pedido en backend — best-effort, no bloquea si falla
-  saveOrderToBackend(section, { name, club, dni, cuit, phone, email, address, localidad }, delivery, comprobante);
+  saveOrderToBackend(section, { name, club, dni, cuit, phone, email, address, localidad }, delivery, comprobante, seller?.slug);
 
   window.open(url, '_blank');
 

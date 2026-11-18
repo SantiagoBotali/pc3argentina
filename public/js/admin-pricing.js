@@ -64,7 +64,7 @@ function renderPricingContent() {
       </div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" style="max-width:none">
       <h3 style="margin-bottom:4px">Referencia de precios por categoría</h3>
       <div class="text-sm text-muted" style="margin-bottom:12px">
         Precios actuales del catálogo en pesos y su equivalente en dólares (al tipo de cambio venta del BNA),

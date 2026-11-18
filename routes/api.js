@@ -875,15 +875,80 @@ router.get('/admin/resellers', requireAdmin, async (req, res) => {
   try {
     const db = getDb();
     const rows = await db.query(`
-      SELECT r.id, r.name, r.slug,
-             COUNT(o.id) AS sales_count,
+      SELECT r.id, r.name, r.slug, r.active, r.commission_pct,
+             COUNT(o.id) FILTER (WHERE o.status <> 'cancelled')   AS sales_count,
+             COUNT(o.id) FILTER (WHERE o.status = 'confirmed')    AS confirmed_count,
              COALESCE(SUM(o.total) FILTER (WHERE o.status = 'confirmed'), 0) AS confirmed_revenue
       FROM resellers r
       LEFT JOIN orders o ON o.reseller_id = r.id
-      GROUP BY r.id, r.name, r.slug
-      ORDER BY sales_count DESC, r.name ASC
+      GROUP BY r.id
+      ORDER BY r.active DESC, sales_count DESC, r.name ASC
     `);
-    res.json(rows);
+    res.json(rows.map(r => {
+      const revenue = parseInt(r.confirmed_revenue) || 0;
+      const pct = Number(r.commission_pct) || 0;
+      return {
+        ...r,
+        sales_count: parseInt(r.sales_count) || 0,
+        confirmed_count: parseInt(r.confirmed_count) || 0,
+        confirmed_revenue: revenue,
+        commission_pct: pct,
+        commission_amount: Math.round(revenue * pct / 100),
+      };
+    }));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+function slugify(str) {
+  return String(str)
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'vendedor';
+}
+
+function parseCommission(v) {
+  const n = parseFloat(String(v ?? '').replace(',', '.'));
+  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
+}
+
+router.post('/admin/resellers', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+
+    // Slug único para el link /revendedor/:slug
+    const base = slugify(name);
+    let slug = base;
+    for (let i = 2; await db.prepare(`SELECT 1 FROM resellers WHERE slug = ?`).get(slug); i++) {
+      slug = `${base}-${i}`;
+    }
+
+    const result = await db.prepare(
+      `INSERT INTO resellers (name, slug, commission_pct) VALUES (?, ?, ?)`
+    ).run(name, slug, parseCommission(req.body.commission_pct));
+    res.status(201).json(await db.prepare(`SELECT * FROM resellers WHERE id = ?`).get(result.lastInsertRowid));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.put('/admin/resellers/:id', requireAdmin, async (req, res) => {
+  try {
+    const db = getDb();
+    const existing = await db.prepare(`SELECT * FROM resellers WHERE id = ?`).get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Vendedor no encontrado' });
+
+    const name = req.body.name != null ? String(req.body.name).trim() : existing.name;
+    if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+    const pct = req.body.commission_pct != null ? parseCommission(req.body.commission_pct) : existing.commission_pct;
+    const active = req.body.active != null ? (req.body.active ? 1 : 0) : existing.active;
+
+    await db.prepare(
+      `UPDATE resellers SET name = ?, commission_pct = ?, active = ? WHERE id = ?`
+    ).run(name, pct, active, req.params.id);
+    res.json(await db.prepare(`SELECT * FROM resellers WHERE id = ?`).get(req.params.id));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

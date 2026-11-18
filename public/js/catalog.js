@@ -14,7 +14,17 @@ window.state = {
   carts: { profesional: {}, mayorista: {} },
   resellerSlug: null,
   resellerName: null,
+  resellers: [],   // vendedores activos, para el campo "Vendedor" del checkout
 };
+
+window.escapeHtml = (str) => String(str ?? '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// Lista de vendedores — no bloquea la carga del catálogo si falla
+fetch('/api/resellers')
+  .then(r => (r.ok ? r.json() : []))
+  .then(list => { state.resellers = Array.isArray(list) ? list : []; })
+  .catch(() => {});
 
 // ─── Revendedor: detecta /revendedor/:slug y tagea la sesión ──
 (function detectReseller() {
@@ -37,7 +47,7 @@ async function setupResellerBanner() {
   const banner = document.createElement('div');
   banner.id = 'reseller-banner';
   banner.style.cssText = 'position:sticky;top:0;z-index:60;background:var(--color-accent);color:#fff;text-align:center;padding:8px 12px;font-size:13px;font-weight:600';
-  banner.innerHTML = `Vendiendo como <strong>${state.resellerName}</strong> · <a href="/revendedor" style="color:#fff;text-decoration:underline">cambiar</a>`;
+  banner.innerHTML = `Vendiendo como <strong>${escapeHtml(state.resellerName)}</strong> · <a href="/revendedor" style="color:#fff;text-decoration:underline">cambiar</a>`;
   document.body.prepend(banner);
 }
 

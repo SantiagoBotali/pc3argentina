@@ -60,7 +60,7 @@ function navigate(page) {
   admin.currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
 
-  const titles = { dashboard: 'Dashboard', products: 'Productos', orders: 'Pedidos', colors: 'Paleta de colores', pricing: 'Precios & Dólar', resellers: 'Revendedores', settings: 'Configuración', password: 'Cambiar Contraseña' };
+  const titles = { dashboard: 'Dashboard', products: 'Productos', orders: 'Pedidos', colors: 'Paleta de colores', pricing: 'Precios & Dólar', resellers: 'Vendedores', settings: 'Configuración', password: 'Cambiar Contraseña' };
   document.getElementById('page-title').textContent = titles[page] || page;
 
   if (page === 'dashboard') renderDashboard();

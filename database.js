@@ -178,6 +178,7 @@ async function init() {
     ALTER TABLE orders         ADD COLUMN IF NOT EXISTS client_email    TEXT    NOT NULL DEFAULT '';
     ALTER TABLE product_images ADD COLUMN IF NOT EXISTS image_type      TEXT    NOT NULL DEFAULT 'variant';
     ALTER TABLE orders         ADD COLUMN IF NOT EXISTS reseller_id     INTEGER REFERENCES resellers(id);
+    ALTER TABLE resellers      ADD COLUMN IF NOT EXISTS commission_pct  REAL    NOT NULL DEFAULT 0;
   `);
 
   // ── Seed default colors if table is empty ─────────────────────────
@@ -197,16 +198,28 @@ async function init() {
     `);
   }
 
-  // ── Seed provisional resellers if table is empty ───────────────────
-  // Datos de prueba: nombres provisorios pedidos para probar el flujo de link único.
-  const resellerCount = await pool.query(`SELECT COUNT(*) FROM resellers`);
-  if (parseInt(resellerCount.rows[0].count) === 0) {
+  // ── Vendedores iniciales (una sola vez) ────────────────────────────
+  // Reemplaza los nombres de prueba (Luis, Ralph, Mily, Pablo) por los
+  // vendedores reales. Corre una única vez (flag en `settings`); después
+  // la lista se maneja desde el panel admin → Vendedores.
+  const sellersSeeded = await pool.query(
+    `SELECT 1 FROM settings WHERE key = 'sellers_v2_seeded'`
+  );
+  if (sellersSeeded.rowCount === 0) {
+    // Los de prueba se borran si no tienen pedidos; si tienen, se desactivan.
     await pool.query(`
+      DELETE FROM resellers r
+      WHERE r.slug IN ('luis', 'ralph', 'mily')
+        AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.reseller_id = r.id);
+      UPDATE resellers SET active = 0 WHERE slug IN ('luis', 'ralph', 'mily');
+      UPDATE resellers SET name = 'Pablo PC3' WHERE slug = 'pablo';
       INSERT INTO resellers (name, slug) VALUES
-        ('Luis',  'luis'),
-        ('Ralph', 'ralph'),
-        ('Mily',  'mily'),
-        ('Pablo', 'pablo')
+        ('Pablo PC3', 'pablo'),
+        ('Mariano',   'mariano'),
+        ('Marcos',    'marcos')
+      ON CONFLICT (slug) DO NOTHING;
+      INSERT INTO settings (key, value) VALUES ('sellers_v2_seeded', '1')
+      ON CONFLICT (key) DO NOTHING;
     `);
   }
 
